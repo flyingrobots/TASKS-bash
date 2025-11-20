@@ -109,3 +109,11 @@ Dockerized Bats suite lives in `tests/`. Run everything in isolation:
 ```bash
 ./run-tests.sh
 ```
+
+---
+
+## License
+
+MIT
+_© 2025 James Ross • [Flying•Robots](https://github.com/flyingrobots)_
+_All Rights Reserved_
