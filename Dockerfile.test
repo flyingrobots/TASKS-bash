@@ -12,4 +12,7 @@ WORKDIR /app
 # Copy the repository into the container for isolated testing
 COPY . /app
 
+# Ensure scripts are executable inside the image
+RUN chmod +x *.sh adapters/*.sh lib/*.sh tests/*.bats tests/fixtures/fake_planner.sh
+
 CMD ["bats", "tests"]

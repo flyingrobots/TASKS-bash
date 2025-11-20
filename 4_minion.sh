@@ -28,4 +28,8 @@ else
   port_log_error "💀 $task_id failed"
 fi
 
+# Clean up claimed worker directory to avoid stale slots
+rm -rf "$TASKS_DIR/claimed/$worker_id"
+rm -f "$TASKS_DIR/pids/$worker_id.pid"
+
 exit $status
