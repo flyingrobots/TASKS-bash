@@ -36,6 +36,7 @@ teardown() { rm -rf "$TEST_TMP"; }
   [ "$status" -eq 0 ]
   [ -f .tasks/closed/task1.json ]
   [ -f .tasks/logs/task1.log ]
+  [ ! -d .tasks/claimed/w1 ]
 }
 
 @test "minion moves task to dead on failure" {
@@ -46,4 +47,5 @@ teardown() { rm -rf "$TEST_TMP"; }
   [ "$status" -eq 1 ]
   [ -f .tasks/dead/task1.json ]
   [ -f .tasks/logs/task1.log ]
+  [ ! -d .tasks/claimed/w1 ]
 }

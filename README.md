@@ -1,6 +1,6 @@
 # T.A.S.K.S. (Ultimate Bash Suite)
 
-***T**asks **A**re **S**equenced **K**ey **S**teps* is a file-system-based autonomous agent runner. It turns a goal into a dependency-ordered DAG, manages tasks via the filesystem, and drives parallel LLM workers to get the work done.
+***T**asks **A**re **S**equenced **K**ey **S**teps** is a file-system-based autonomous agent runner. It turns a goal into a dependency-ordered DAG, manages tasks via the filesystem, and drives parallel LLM workers to get the work done.
 
 > [!WARNING]
 > This gives an LLM write access to your workspace. Run inside git (or a Docker container that copies the repo in) so you can revert if things go sideways.

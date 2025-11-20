@@ -6,7 +6,7 @@
 
 # Directories
 export TASKS_DIR="$(pwd)/.tasks"
-mkdir -p .tasks/{manifest,blocked,open,claimed,closed,dead,logs,prompts}
+mkdir -p .tasks/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids}
 
 # Worker Configuration
 export MAX_WORKERS=${MAX_WORKERS:-4}
