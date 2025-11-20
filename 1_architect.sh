@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 source setup.sh
 source adapters/log.sh
 source adapters/llm_planner.sh
