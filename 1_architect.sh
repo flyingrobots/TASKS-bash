@@ -5,7 +5,7 @@ source adapters/llm_planner.sh
 
 GOAL="$1"
 if [ -z "$GOAL" ]; then 
-    echo "Usage: ./1_architect.sh 'Your goal here'"
+    echo "Usage: ./1_architect.sh 'Your goal here'" >&2
     exit 1
 fi
 
