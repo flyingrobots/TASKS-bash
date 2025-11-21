@@ -42,13 +42,28 @@ jobs:
       - name: Run BATS test suite
         run: docker run --rm tasks-bash-tests
 
+  e2e:
+    name: E2E (deterministic plan)
+    runs-on: ubuntu-latest
+    needs: bats-tests
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build test Docker image (reuse cache if available)
+        run: docker build -f Dockerfile.test -t tasks-bash-tests .
+
+      - name: Run targeted e2e
+        run: docker run --rm tasks-bash-tests bats tests/e2e.bats
+
   lint-and-test:
     name: Full CI Pipeline
     runs-on: ubuntu-latest
-    needs: [shellcheck, bats-tests]
+    needs: [shellcheck, bats-tests, e2e]
     steps:
       - name: CI Summary
         run: |
           echo "✅ All checks passed:"
           echo "  - ShellCheck (strict mode)"
           echo "  - BATS test suite"
+          echo "  - E2E deterministic app build"
