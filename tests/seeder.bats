@@ -22,6 +22,11 @@ teardown() { rm -rf "$TEST_TMP"; }
 {
   "tasks": [
     {"id":"task_a","dependencies":[],"description":"ready"},
+    {"id":"task_b","dependencies":["task_a"],"description":"blocked"}
+  ]
+}
+JSON
+
   run bash ./2_seeder.sh
   [ "$status" -eq 0 ]
 
@@ -32,9 +37,4 @@ teardown() { rm -rf "$TEST_TMP"; }
   [ -f .tasks/blocked/task_b.json ]
   run jq -e '.id == "task_b" and (.dependencies | length) == 1' .tasks/blocked/task_b.json
   [ "$status" -eq 0 ]
-}
-  [ "$status" -eq 0 ]
-
-  [ -f .tasks/open/task_a.json ]
-  [ -f .tasks/blocked/task_b.json ]
 }
