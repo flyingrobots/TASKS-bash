@@ -10,7 +10,7 @@ if [ -z "$GOAL" ]; then
 fi
 
 PROMPT_FILE="$TASKS_DIR/prompts/architect.txt"
-cat > "$PROMPT_FILE" <<EOF
+if ! cat > "$PROMPT_FILE" <<EOF
 You are the T.A.S.K.S. Architect.
 
 CONTEXT:
