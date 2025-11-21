@@ -26,8 +26,8 @@
 ## Quick Start
 
 ```bash
-# 0) Make scripts executable
-chmod +x *.sh
+# 0) Make the task scripts executable (avoid chmod-ing everything)
+chmod +x setup.sh 1_architect.sh 2_seeder.sh 3_overlord.sh 4_minion.sh 5_status.sh 6_revive.sh
 
 # 1) Initialize directories and env vars
 ./setup.sh
