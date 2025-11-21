@@ -4,9 +4,9 @@
 # T.A.S.K.S. CONFIGURATION
 # ==========================================
 
-# Directories
-export TASKS_DIR="$(pwd)/.tasks"
-mkdir -p .tasks/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids}
+# Directories (allow override for tests)
+export TASKS_DIR="${TASKS_DIR:-$(pwd)/.tasks}"
+mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids}
 
 # Worker Configuration
 export MAX_WORKERS=${MAX_WORKERS:-4}

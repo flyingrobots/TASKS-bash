@@ -37,7 +37,7 @@ teardown() {
   GOAL_COUNT=${output:-0}
   [ "$GOAL_COUNT" -eq 1 ]
 
-  jq -e '.tasks[0].id == "task_01"' .tasks/manifest/dag.json >/dev/null
+  jq -e '.tasks[0].id == "bootstrap"' .tasks/manifest/dag.json >/dev/null
 }
 
 @test "1_architect.sh fails when planner exits non-zero" {
