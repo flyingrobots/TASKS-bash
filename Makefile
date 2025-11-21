@@ -15,8 +15,8 @@ NON_E2E_TESTS := $(shell find tests -maxdepth 1 -name '*.bats' ! -name 'e2e.bats
 
 help:
 	@echo "Targets:"
-	@echo "  test      - Run unit/integration BATS (excludes e2e)"
-	@echo "  test-e2e  - Run deterministic e2e (tests/e2e.bats)"
+	@echo "  test      : Run unit/integration BATS (excludes e2e)"
+	@echo "  test-e2e  : Run deterministic e2e (tests/e2e.bats)"
 
 test:
 	$(BATS) $(NON_E2E_TESTS)

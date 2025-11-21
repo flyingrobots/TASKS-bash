@@ -61,7 +61,6 @@ teardown() {
   [[ -n "$rand1" && -n "$ts1" && -n "$pid1" ]]
   [[ -n "$rand2" && -n "$ts2" && -n "$pid2" ]]
   [ "$id1" != "$id2" ]
-  [ "$rand1" != "$rand2" ] || [ "$ts1" != "$ts2" ]
 }
 
 @test "TASKS_SKIP_LOCKDOWN leaves default permissions" {

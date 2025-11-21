@@ -54,9 +54,21 @@ export LLM_PLANNER_CMD="${LLM_PLANNER_CMD:-claude -p}"
 # Requirements: Must be capable of File I/O (editing files in place).
 # Input format: LLM_WORKER_CMD string; converted to array for execution.
 # Note: We use --dangerously-skip-permissions for full autonomy.
-LLM_WORKER_CMD_STR=${LLM_WORKER_CMD_STR:-${LLM_WORKER_CMD:-"claude --dangerously-skip-permissions"}}
+LLM_WORKER_CMD_DEFAULT=(claude --dangerously-skip-permissions)
+# Choose worker command: prefer existing array, else string override, else default array.
+if declare -p LLM_WORKER_CMD 2>/dev/null | grep -q 'declare \-a'; then
+  :  # already an array
+elif [ -n "${LLM_WORKER_CMD:-}" ]; then
+  LLM_WORKER_CMD=("$LLM_WORKER_CMD")
+elif [ -n "${LLM_WORKER_CMD_STR:-}" ]; then
+  LLM_WORKER_CMD=("$LLM_WORKER_CMD_STR")
+else
+  LLM_WORKER_CMD=("${LLM_WORKER_CMD_DEFAULT[@]}")
+fi
+export LLM_WORKER_CMD
+# For logging/tests, keep a string form mirroring the current array
+LLM_WORKER_CMD_STR=${LLM_WORKER_CMD_STR:-"${LLM_WORKER_CMD[*]}"}
 export LLM_WORKER_CMD_STR
-read -ra LLM_WORKER_CMD <<<"$LLM_WORKER_CMD_STR"
 
 # Helper function to generate a high-entropy worker ID
 get_worker_id() {
