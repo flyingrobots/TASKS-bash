@@ -17,8 +17,7 @@ CONTEXT:
 - Project file tree intentionally omitted to keep the prompt light.
 - If you need directory context, explicitly ask for a targeted, shallow listing rather than the whole repo.
 
-GOAL:
-$GOAL
+GOAL: $GOAL
 
 RULES:
 1. Break the goal into atomic, bounded tasks (2-4 hours estimated effort).
@@ -33,11 +32,29 @@ fi
 
 port_log_info "🧠 Architect is thinking (using $LLM_PLANNER_CMD)..."
 
-port_call_planner "$PROMPT_FILE" "Generate the execution plan." > "$TASKS_DIR/manifest/dag.json"
-
-if [ -s "$TASKS_DIR/manifest/dag.json" ]; then
-    port_log_info "✅ Plan generated at $TASKS_DIR/manifest/dag.json"
-else
-    port_log_error "❌ Generation failed. Check LLM configuration."
+# Use temp file to avoid creating output on failure
+TEMP_MANIFEST="$TASKS_DIR/manifest/dag.json.tmp"
+if ! port_call_planner "$PROMPT_FILE" "Generate the execution plan." > "$TEMP_MANIFEST"; then
+    rm -f "$TEMP_MANIFEST"
+    port_log_error "❌ Planner command failed"
     exit 1
 fi
+
+# Validate JSON output
+if ! jq empty "$TEMP_MANIFEST" 2>/dev/null; then
+    rm -f "$TEMP_MANIFEST"
+    port_log_error "❌ Planner produced invalid JSON"
+    exit 1
+fi
+
+# Check for empty tasks array
+task_count=$(jq '.tasks | length' "$TEMP_MANIFEST" 2>/dev/null || echo 0)
+if [ "$task_count" -eq 0 ]; then
+    rm -f "$TEMP_MANIFEST"
+    port_log_error "❌ Planner produced no tasks or empty tasks array"
+    exit 1
+fi
+
+# Move to final location on success
+mv "$TEMP_MANIFEST" "$TASKS_DIR/manifest/dag.json"
+port_log_info "✅ Plan generated at $TASKS_DIR/manifest/dag.json"

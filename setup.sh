@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ==========================================
 # T.A.S.K.S. CONFIGURATION

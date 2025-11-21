@@ -78,7 +78,8 @@ JSON
   export LLM_WORKER_CMD="$TEST_TMP/fake_worker_success.sh"
   run bash ./4_minion.sh w_bad task_bad
   [ "$status" -ne 0 ]
-  [[ "$output" == *"jq"* ]] || [[ "$stderr" == *"parse"* ]] || [[ "$stderr" == *"JSON"* ]]
+  # Check that error output mentions JSON parsing issue
+  [[ "$output" == *"JSON"* ]] || [[ "$output" == *"parse"* ]] || [[ "$output" == *"jq"* ]]
 }
 
 @test "minion fails when task file is missing" {
@@ -123,7 +124,8 @@ JSON
   export LLM_WORKER_CMD="$TEST_TMP/fake_worker_success.sh"
   run bash ./4_minion.sh w_ro task_ro
   [ "$status" -ne 0 ]
-  [[ "$output" == *"cleanup"* ]] || [[ "$stderr" == *"cleanup"* ]] || [[ "$output" == *"Invalid"* ]]
+  # Check for cleanup failure or invalid state messages
+  [[ "$output" == *"clean up"* ]] || [[ "$output" == *"cleanup"* ]] || [[ "$output" == *"Invalid"* ]]
 
   # Restore permissions for cleanup
   chmod +w .tasks/claimed

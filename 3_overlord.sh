@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 source setup.sh
 source adapters/fs.sh
 source adapters/log.sh
@@ -36,7 +36,8 @@ graceful_shutdown() {
         if kill -0 "$pid" 2>/dev/null; then
             kill -TERM "$pid" 2>/dev/null
         fi
-        wait "$pid" 2>/dev/null
+        # Tolerate non-zero exit status during shutdown
+        wait "$pid" 2>/dev/null || true
     done
 
     # Clean pidfiles
@@ -55,15 +56,16 @@ while port_should_continue "$tick"; do
 
     # Reap finished minions to prevent zombies (only our minions)
     if [ ${#MINION_PIDS[@]} -gt 0 ]; then
-        local alive=()
+        alive=()
         for pid in "${MINION_PIDS[@]}"; do
             if kill -0 "$pid" 2>/dev/null; then
                 alive+=($pid)
             else
-                wait "$pid" 2>/dev/null
+                # Tolerate non-zero exit status - failing tasks shouldn't kill overlord
+                wait "$pid" 2>/dev/null || true
             fi
         done
-        MINION_PIDS=(${alive[@]})
+        MINION_PIDS=("${alive[@]}")
     fi
 
     tick=$((tick+1))

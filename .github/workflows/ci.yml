@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: [main]
+
+jobs:
+  shellcheck:
+    name: ShellCheck (Strict)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run shellcheck on all bash scripts
+        run: |
+          # Find all .sh files and scripts with bash shebang
+          find . -type f \( -name "*.sh" -o -executable \) \
+            ! -path "./.git/*" \
+            ! -path "./node_modules/*" \
+            ! -path "./.tasks/*" \
+            -exec grep -l "^#!.*bash" {} + 2>/dev/null \
+            | xargs shellcheck --severity=error --shell=bash --enable=all
+
+  bats-tests:
+    name: BATS Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build test Docker image
+        run: docker build -f Dockerfile.test -t tasks-bash-tests .
+
+      - name: Run BATS test suite
+        run: docker run --rm tasks-bash-tests
+
+  lint-and-test:
+    name: Full CI Pipeline
+    runs-on: ubuntu-latest
+    needs: [shellcheck, bats-tests]
+    steps:
+      - name: CI Summary
+        run: |
+          echo "✅ All checks passed:"
+          echo "  - ShellCheck (strict mode)"
+          echo "  - BATS test suite"

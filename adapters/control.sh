@@ -16,7 +16,8 @@ port_should_continue() {
   fi
 
   # If OVERLORD_TICKS is set, validate it's numeric
-  if [ -n "$OVERLORD_TICKS" ]; then
+  # Use parameter expansion with default to handle set -u
+  if [ -n "${OVERLORD_TICKS-}" ]; then
     if ! [[ "$OVERLORD_TICKS" =~ ^[0-9]+$ ]]; then
       echo "Error: OVERLORD_TICKS must be a non-negative integer, got: $OVERLORD_TICKS" >&2
       return 2
