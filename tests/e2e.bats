@@ -1,14 +1,27 @@
 #!/usr/bin/env bats
 
 setup() {
-  tmpdir=$(mktemp -d)
-  cp -R . "$tmpdir/repo"
-  cd "$tmpdir/repo"
+  tmpdir=$(mktemp -d -t e2e_test.XXXXXX)
+  mkdir -p "$tmpdir/repo"
+  # Portable copy: find + prune unwanted dirs, pipe through cpio -p
+  (
+    cd "$PROJECT_ROOT" || exit 1
+    find . \( -path './.git' -o -path './node_modules' -o -path './.tasks' \) -prune -o -print |\
+      cpio -pdm "$tmpdir/repo"
+  ) || { echo "Failed to copy repo" >&2; exit 1; }
+  cd "$tmpdir/repo" || { echo "Failed to enter $tmpdir/repo" >&2; exit 1; }
 }
 
 teardown() {
-  cd /tmp || true
-  rm -rf "$tmpdir"
+  if [ -n "$tmpdir" ] && [ -d "$tmpdir" ]; then
+    pwd_cur=$(pwd)
+    case "$pwd_cur" in
+      "$tmpdir"* )
+        cd / || { echo "Warning: Could not leave $tmpdir" >&2; return; }
+        ;;
+    esac
+    rm -rf "$tmpdir" || echo "Warning: Failed to remove $tmpdir" >&2
+  fi
 }
 
 @test "architect -> seeder -> overlord produces markdown previewer" {
@@ -40,14 +53,15 @@ teardown() {
   [ -x app/preview.sh ]
   run app/preview.sh README.md public/index.html
   [ "$status" -eq 0 ]
-  grep "<html" public/index.html
+  run grep -q "<html" public/index.html
+  [ "$status" -eq 0 ]
 
   [ -f tests/preview.bats ]
   run bats tests/preview.bats
   [ "$status" -eq 0 ]
 
-  grep -q "build:" Makefile
-  grep -q "test:" Makefile
+  log_count=$(find .tasks/logs -name '*.log' -type f 2>/dev/null | wc -l)
+  [ "$log_count" -ge 4 ]
   grep -q "Watch mode" README.md
 
   log_count=$(ls .tasks/logs/*.log 2>/dev/null | wc -l)

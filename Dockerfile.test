@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       bats jq coreutils findutils bash \
+       bats jq coreutils findutils bash rsync cpio \
     && rm -rf /var/lib/apt/lists/*
 
 # Run tests as a non-root user so permission checks in BATS behave correctly

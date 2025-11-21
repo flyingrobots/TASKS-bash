@@ -1,0 +1,19 @@
+name: BATS Tests
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'  # weekly (Mon 06:00 UTC)
+
+jobs:
+  bats-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build test Docker image
+        run: docker build -f Dockerfile.test -t tasks-bash-tests .
+
+      - name: Run BATS test suite
+        run: docker run --rm tasks-bash-tests

@@ -1,0 +1,19 @@
+name: CLI E2E (deterministic plan)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 7 * * 1'  # weekly (Mon 07:00 UTC)
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build test Docker image
+        run: docker build -f Dockerfile.test -t tasks-bash-tests .
+
+      - name: Run deterministic e2e
+        run: docker run --rm tasks-bash-tests bats tests/e2e.bats

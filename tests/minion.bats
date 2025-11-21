@@ -7,10 +7,7 @@ setup() {
   mkdir -p "$TEST_TMP/adapters"
   cp "$PROJECT_ROOT/adapters/log.sh" "$PROJECT_ROOT/adapters/llm_worker.sh" "$TEST_TMP/adapters/"
 
-  mkdir -p "$TEST_TMP/.tasks/claimed/w1" "$TEST_TMP/.tasks/logs"
-  cat > "$TEST_TMP/.tasks/claimed/w1/task1.json" <<'JSON'
-{"id":"task1","description":"do something"}
-JSON
+  mkdir -p "$TEST_TMP/.tasks/logs"
 
   cat > "$TEST_TMP/fake_worker_success.sh" <<'SH'
 #!/usr/bin/env bash
@@ -71,40 +68,49 @@ JSON
 
 @test "minion fails on malformed task JSON" {
   # Create task file with invalid JSON
-  rm -f .tasks/closed/task_bad.json .tasks/dead/task_bad.json
-  mkdir -p .tasks/claimed/w_bad
-  echo "this is not valid JSON at all" > .tasks/claimed/w_bad/task_bad.json
+  worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
+  task_id="task_${worker_id}"
+  rm -f ".tasks/closed/${task_id}.json" ".tasks/dead/${task_id}.json"
+  mkdir -p ".tasks/claimed/${worker_id}"
+  echo "this is not valid JSON at all" > ".tasks/claimed/${worker_id}/${task_id}.json"
 
   export LLM_WORKER_CMD="$TEST_TMP/fake_worker_success.sh"
-  run bash ./4_minion.sh w_bad task_bad
+  run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]
-  # Check that error output mentions JSON parsing issue
-  [[ "$output" == *"JSON"* ]] || [[ "$output" == *"parse"* ]] || [[ "$output" == *"jq"* ]]
+  [[ "$output" =~ (JSON|parse|jq) ]]  # Regex is clearer than substring glob
+  [ ! -f ".tasks/closed/${task_id}.json" ]
+  [ -f ".tasks/dead/${task_id}.json" ]
+  [ ! -d ".tasks/claimed/${worker_id}" ]
 }
-
 @test "minion fails when task file is missing" {
   # Start with nonexistent task file
-  mkdir -p .tasks/claimed/w_missing
-  rm -f .tasks/claimed/w_missing/task_missing.json
+  worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
+  task_id="task_${worker_id}"
+  mkdir -p ".tasks/claimed/${worker_id}"
+  rm -f ".tasks/claimed/${worker_id}/${task_id}.json"
 
   export LLM_WORKER_CMD="$TEST_TMP/fake_worker_success.sh"
-  run bash ./4_minion.sh w_missing task_missing
+  run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]
-  [[ "$output" == *"not found"* ]] || [[ "$stderr" == *"not found"* ]]
+  [[ "$output" =~ not\ found ]]
 }
 
 @test "minion fails when log directory is unwritable" {
   # Make logs directory unwritable
   chmod -w .tasks/logs
 
-  rm -f .tasks/closed/task_nolog.json .tasks/dead/task_nolog.json
-  mkdir -p .tasks/claimed/w_nolog
-  cat > .tasks/claimed/w_nolog/task_nolog.json <<'JSON'
-{"id":"task_nolog","description":"test"}
+  worker_id="${BATS_TEST_NUMBER}_$RANDOM"
+  task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
+
+  rm -f ".tasks/closed/${task_id}.json" ".tasks/dead/${task_id}.json"
+  mkdir -p ".tasks/claimed/${worker_id}"
+  cat > ".tasks/claimed/${worker_id}/${task_id}.json" <<JSON
+{"id":"${task_id}","description":"test"}
 JSON
 
   export LLM_WORKER_CMD="$TEST_TMP/fake_worker_success.sh"
-  run bash ./4_minion.sh w_nolog task_nolog
+  export TASKS_SKIP_LOCKDOWN=1
+  run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]
 
   # Restore permissions for cleanup
@@ -112,21 +118,28 @@ JSON
 }
 
 @test "minion reports cleanup failure when claimed dir is read-only" {
-  rm -f .tasks/closed/task_ro.json .tasks/dead/task_ro.json
-  mkdir -p .tasks/claimed/w_ro
-  cat > .tasks/claimed/w_ro/task_ro.json <<'JSON'
-{"id":"task_ro","description":"test"}
+  worker_id="${BATS_TEST_NUMBER}_$RANDOM"
+  task_id="task_${worker_id}"
+
+  rm -f ".tasks/closed/${task_id}.json" ".tasks/dead/${task_id}.json"
+  mkdir -p ".tasks/claimed/${worker_id}"
+  cat > ".tasks/claimed/${worker_id}/${task_id}.json" <<JSON
+{"id":"${task_id}","description":"test"}
 JSON
+
+  # Ensure claimed permissions are restored even if the test aborts early
+  trap 'chmod -R +w .tasks/claimed 2>/dev/null || true' EXIT
 
   # Make claimed directory read-only
   chmod -w .tasks/claimed
 
   export LLM_WORKER_CMD="$TEST_TMP/fake_worker_success.sh"
-  run bash ./4_minion.sh w_ro task_ro
+  export TASKS_SKIP_LOCKDOWN=1
+  run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]
-  # Check for cleanup failure or invalid state messages
-  [[ "$output" == *"clean up"* ]] || [[ "$output" == *"cleanup"* ]] || [[ "$output" == *"Invalid"* ]]
-
-  # Restore permissions for cleanup
   chmod +w .tasks/claimed
+
+  # Assert cleanup failure was detected
+  [[ "$output" == *"Failed to clean up worker directory"* ]]
+  [ -d ".tasks/claimed/${worker_id}" ]
 }

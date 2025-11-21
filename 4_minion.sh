@@ -35,6 +35,10 @@ fi
 # Validate JSON structure before proceeding
 if ! jq empty "$TASK_FILE" 2>/dev/null; then
   port_log_error "Task file contains invalid JSON: $task_id"
+  mkdir -p "$TASKS_DIR/dead"
+  mv "$TASK_FILE" "$TASKS_DIR/dead/$task_id.json" 2>/dev/null || true
+  rm -rf "$TASKS_DIR/claimed/$worker_id" 2>/dev/null || true
+  rm -f "$TASKS_DIR/pids/$worker_id.pid" 2>/dev/null || true
   exit 1
 fi
 

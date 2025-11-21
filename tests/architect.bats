@@ -95,6 +95,7 @@ SCRIPT
   chmod -w .tasks/manifest
 
   export LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/fake_planner.sh"
+  export TASKS_SKIP_LOCKDOWN=1
 
   run bash ./1_architect.sh "Test goal"
   [ "$status" -ne 0 ]

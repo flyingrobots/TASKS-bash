@@ -7,6 +7,10 @@
 # Directories (allow override for tests)
 export TASKS_DIR="${TASKS_DIR:-$(pwd)/.tasks}"
 mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids}
+# Lock down permissions to owner-only (0700) for task state unless explicitly skipped
+if [ "${TASKS_SKIP_LOCKDOWN:-0}" != "1" ]; then
+  find "$TASKS_DIR" -type d -exec chmod 700 {} +
+fi
 
 # Worker Configuration
 export MAX_WORKERS=${MAX_WORKERS:-4}
