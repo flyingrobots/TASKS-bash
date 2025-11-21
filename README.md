@@ -1,9 +1,16 @@
 # T.A.S.K.S.
 
+![task-bash-social](https://github.com/user-attachments/assets/c06b77db-9e1c-4cea-adad-785097ca58b1)
+
 **T**asks **A**re **S**equenced **K**ey **S**teps is a file-system-based autonomous agent runner. It turns a goal into a dependency-ordered DAG, manages tasks via the filesystem, and drives parallel LLM workers to get the work done.
 
 > [!WARNING]
 > This gives an LLM write access to your workspace. Run inside git (or a Docker container that copies the repo in) so you can revert if things go sideways.
+
+> [!CAUTION]
+> USE AT YOUR OWN RISK. If you run this software, you're unleashing the swarm. Not one LLM going buck wild. Unsupervised. Multiple LLMs.  
+> 🥀
+> May Claude have mercy on your repo.
 
 ## Architecture (Filesystem = Database)
 
@@ -118,3 +125,11 @@ Dockerized Bats suite lives in `tests/`. Run everything in isolation:
 ```bash
 ./run-tests.sh
 ```
+
+---
+
+## License
+
+MIT
+_© 2025 James Ross • [Flying•Robots](https://github.com/flyingrobots)_
+_All Rights Reserved_
