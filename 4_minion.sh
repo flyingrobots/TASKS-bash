@@ -33,8 +33,8 @@ cleanup_worker_state() {
   fi
   rm -rf "$TASKS_DIR/claimed/$worker_id" 2>/dev/null || port_log_error "Failed to remove claimed dir for $worker_id"
   rm -f "$TASKS_DIR/pids/$worker_id.pid" 2>/dev/null || true
-  if [ -n "$log_file" ] && [ ! -f "$log_file" ]; then
-    printf '%s\n' "$reason" >"$log_file" 2>/dev/null || true
+  if [ -n "$log_file" ]; then
+    printf '%s\n' "$reason" >>"$log_file" 2>/dev/null || true
   fi
 }
 
@@ -66,40 +66,40 @@ fi
 
 TIMEOUT_SECONDS=${TIMEOUT_SECONDS:-300}
 if command -v timeout >/dev/null 2>&1; then
-  timeout --preserve-status "${TIMEOUT_SECONDS}s" bash -c 'call_llm_worker "$1"' _ "$prompt" >"$LOG_FILE" 2>&1
+  printf '%s\n' "$prompt" | timeout --preserve-status "${TIMEOUT_SECONDS}s" "${LLM_WORKER_CMD[@]}" >"$LOG_FILE" 2>&1
   status=$?
   if [ $status -eq 124 ] || [ $status -eq 137 ]; then
     port_log_error "LLM worker timed out for $task_id"
   fi
 else
-  call_llm_worker "$prompt" >"$LOG_FILE" 2>&1
+  printf '%s\n' "$prompt" | "${LLM_WORKER_CMD[@]}" >"$LOG_FILE" 2>&1
   status=$?
 fi
 
 # Ensure destination directories exist before moving
 mkdir -p "$TASKS_DIR/closed" "$TASKS_DIR/dead"
 
+cleanup_fail=0
+
 if [ $status -eq 0 ]; then
   if mv "$TASK_FILE" "$TASKS_DIR/closed/$task_id.json"; then
     port_log_info "✅ $task_id closed"
-    rm -rf "$TASKS_DIR/claimed/$worker_id" 2>/dev/null || port_log_error "Failed to remove claimed dir for $worker_id"
-    rm -f "$TASKS_DIR/pids/$worker_id.pid" 2>/dev/null || true
   else
     port_log_error "Failed to move $task_id to closed: $?"
-    exit 1
+    cleanup_fail=1
   fi
 else
   cleanup_worker_state "execution failed (status $status)" "$TASK_FILE" "$LOG_FILE"
 fi
 
-# Clean up claimed worker directory to avoid stale slots
+# Unified cleanup that does not override task exit status unless cleanup fails
 if [ -n "$worker_id" ] && [ -d "$TASKS_DIR/claimed/$worker_id" ]; then
-  if ! rm -rf "$TASKS_DIR/claimed/$worker_id"; then
-    port_log_error "Failed to clean up worker directory: $worker_id"
-    exit 1
-  fi
+  rm -rf "$TASKS_DIR/claimed/$worker_id" 2>/dev/null || { port_log_error "Failed to clean up worker directory: $worker_id"; cleanup_fail=1; }
 fi
-
 rm -f "$TASKS_DIR/pids/$worker_id.pid" 2>/dev/null || true
+
+if [ $cleanup_fail -ne 0 ] && [ $status -eq 0 ]; then
+  status=1
+fi
 
 exit $status

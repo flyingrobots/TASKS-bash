@@ -68,6 +68,7 @@ JSON
 
 @test "minion fails on malformed task JSON" {
   # Create task file with invalid JSON
+  # Generate unique IDs to avoid collisions
   local worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
   local task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
   rm -f ".tasks/closed/${task_id}.json" ".tasks/dead/${task_id}.json"
@@ -84,6 +85,7 @@ JSON
 }
 @test "minion fails when task file is missing" {
   # Start with nonexistent task file
+  # Generate unique IDs to avoid collisions
   local worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
   local task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
   mkdir -p ".tasks/claimed/${worker_id}"
@@ -99,6 +101,7 @@ JSON
   # Make logs directory unwritable
   chmod -w .tasks/logs
 
+  # Generate unique IDs to avoid collisions
   local worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
   local task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
 
@@ -127,9 +130,6 @@ JSON
 {"id":"${task_id}","description":"test"}
 JSON
 
-  # Ensure claimed permissions are restored even if the test aborts early
-  trap 'chmod -R +w .tasks/claimed 2>/dev/null || true' EXIT
-
   # Make claimed directory read-only
   chmod -w .tasks/claimed
 
@@ -137,9 +137,8 @@ JSON
   export TASKS_SKIP_LOCKDOWN=1
   run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]
-  chmod +w .tasks/claimed
-
-  # Assert cleanup failure was detected
+  # The worker dir should remain because cleanup failed
   [[ "$output" == *"Failed to clean up worker directory"* ]]
   [ -d ".tasks/claimed/${worker_id}" ]
+  chmod -R +w .tasks/claimed
 }

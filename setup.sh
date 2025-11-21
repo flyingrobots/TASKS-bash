@@ -15,13 +15,12 @@ if [ "${TASKS_SKIP_LOCKDOWN:-0}" = "1" ]; then
   }
 else
   old_umask=$(umask)
+  trap 'umask "$old_umask"' EXIT INT TERM HUP ERR
   umask 077
   mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids} || {
     echo "Error: failed to create task directories under $TASKS_DIR" >&2
-    umask "$old_umask"
     exit 1
   }
-  umask "$old_umask"
 
   # Lock down directory and file permissions; fail fast on errors
   if ! find "$TASKS_DIR" -type d -exec chmod 700 {} +; then
@@ -32,6 +31,9 @@ else
     echo "Error: failed to set file permissions in $TASKS_DIR" >&2
     exit 1
   fi
+
+  umask "$old_umask"
+  trap - EXIT INT TERM HUP ERR
 fi
 
 # Worker Configuration
@@ -50,22 +52,30 @@ export LLM_PLANNER_CMD="${LLM_PLANNER_CMD:-claude -p}"
 
 # 2. The Worker (Minion)
 # Requirements: Must be capable of File I/O (editing files in place).
-# Input format: LLM_WORKER_CMD <full_prompt_string>
+# Input format: LLM_WORKER_CMD string; converted to array for execution.
 # Note: We use --dangerously-skip-permissions for full autonomy.
-export LLM_WORKER_CMD="${LLM_WORKER_CMD:-claude --dangerously-skip-permissions}"
+LLM_WORKER_CMD_STR=${LLM_WORKER_CMD_STR:-${LLM_WORKER_CMD:-"claude --dangerously-skip-permissions"}}
+export LLM_WORKER_CMD_STR
+# shellcheck disable=SC2206
+LLM_WORKER_CMD=(${LLM_WORKER_CMD_STR})
 
 # Helper function to generate a high-entropy worker ID
 get_worker_id() {
     # High-entropy worker id: urandom hex (16 bytes) with timestamp/pid suffix for traceability
     local rand
-    if rand=$(head -c 16 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n'); then
-        :
-    elif command -v uuidgen >/dev/null 2>&1; then
-        rand=$(uuidgen | tr -d '-\n')
-    else
-        local ts=$(date +%s%N 2>/dev/null || echo "$(date +%s)000000000")
-        rand="fallback${ts}$$$RANDOM"
-    fi
+  if rand=$(head -c 16 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n'); then
+    :
+  elif command -v uuidgen >/dev/null 2>&1; then
+    rand=$(uuidgen | tr -d '-\n')
+  else
+    local ts=$(date +%s%N 2>/dev/null || echo "$(date +%s)000000000")
+    rand="fallback${ts}$$$RANDOM"
+  fi
+  if [ -z "${rand// /}" ]; then
+    local ts=$(date +%s%N 2>/dev/null || echo "$(date +%s)000000000")
+    rand="fallback${ts}$$$RANDOM"
+    echo "Warning: rand generation empty, using fallback" >&2
+  fi
     local ts_short=$(date +%s)
     echo "w_${rand}_${ts_short}_$$"
 }

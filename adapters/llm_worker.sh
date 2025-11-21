@@ -4,8 +4,12 @@
 call_llm_worker() {
   local prompt="$1"
 
-  # Use eval to safely handle multi-word commands with flags
-  # LLM_WORKER_CMD should be set in setup.sh (e.g., "claude --dangerously-skip-permissions")
-  # Always quote to avoid shell interpretation of prompt contents
-  printf '%s' "$prompt" | eval "$LLM_WORKER_CMD"
+  # LLM_WORKER_CMD is an array (set in setup.sh); require it to be non-empty
+  if [ ${#LLM_WORKER_CMD[@]} -eq 0 ]; then
+    echo "Error: LLM_WORKER_CMD is not set" >&2
+    return 127
+  fi
+
+  # Send prompt with trailing newline; avoid shell interpretation
+  printf '%s\n' "$prompt" | "${LLM_WORKER_CMD[@]}"
 }

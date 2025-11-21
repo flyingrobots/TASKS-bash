@@ -26,14 +26,14 @@ teardown() {
 
   for dir in "${expected[@]}"; do
     [ "$(find ".tasks/${dir}" -mindepth 1 | wc -l)" -eq 0 ]
-    perms=$(stat -c '%a' ".tasks/${dir}" 2>/dev/null || stat -f '%A' ".tasks/${dir}")
+  perms=$(stat -c '%a' ".tasks/${dir}" 2>/dev/null || stat -f '%Lp' ".tasks/${dir}")
     perms=${perms#0}
     [ "$perms" = "700" ]
   done
 }
 
 @test "setup.sh exports expected environment variables (defaults)" {
-  run bash -c 'source ./setup.sh && printf "%s\n%s\n%s\n%s\n" "$TASKS_DIR" "$MAX_WORKERS" "$LLM_PLANNER_CMD" "$LLM_WORKER_CMD"'
+  run bash -c 'source ./setup.sh && printf "%s\n%s\n%s\n%s\n" "$TASKS_DIR" "$MAX_WORKERS" "$LLM_PLANNER_CMD" "$LLM_WORKER_CMD_STR"'
   [ "$status" -eq 0 ]
 
   mapfile -t vars < <(printf '%s' "$output")
@@ -50,15 +50,17 @@ teardown() {
   id1="${ids[0]}"; id2="${ids[1]}"
   [[ "$id1" =~ ^w_[A-Za-z0-9]+_[0-9]+_[0-9]+$ ]]
   [[ "$id2" =~ ^w_[A-Za-z0-9]+_[0-9]+_[0-9]+$ ]]
-  IFS='_' read -r _ rand1 ts1 pid1 <<<"$id1"
-  IFS='_' read -r _ rand2 ts2 pid2 <<<"$id2"
+  IFS='_' read -r p1 rand1 ts1 pid1 <<<"$id1"
+  IFS='_' read -r p2 rand2 ts2 pid2 <<<"$id2"
+  [[ -n "$p1" && -n "$rand1" && -n "$ts1" && -n "$pid1" ]]
+  [[ -n "$p2" && -n "$rand2" && -n "$ts2" && -n "$pid2" ]]
   [ "$rand1" != "$rand2" ] || [ "$ts1" != "$ts2" ] || [ "$pid1" != "$pid2" ]
 }
 
 @test "TASKS_SKIP_LOCKDOWN leaves default permissions" {
   export TASKS_DIR="$TEST_TMP/skiplock"
   export TASKS_SKIP_LOCKDOWN=1
-  run bash ./setup.sh
+  run bash -c 'umask 022 && ./setup.sh'
   [ "$status" -eq 0 ]
 
   perms=$(stat -c '%a' "$TASKS_DIR" 2>/dev/null || stat -f '%Lp' "$TASKS_DIR")
