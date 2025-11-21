@@ -52,7 +52,7 @@ jq -c '.tasks[]' "$DAG_FILE" | while read -r task; do
         exit 1
     fi
 
-    port_log_info "Seeded $id -> $(basename $(dirname "$target"))"
+    port_log_info "Seeded $id -> $(basename "$(dirname "$target")")"
 done
 
 port_log_info "✅ Seeding complete"
