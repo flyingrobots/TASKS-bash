@@ -33,7 +33,8 @@ teardown() {
   [ -f .tasks/prompts/architect.txt ]
 
   # Validate structured GOAL format with exact match
-  GOAL_COUNT=$(grep -c "^GOAL: Ship a new feature$" .tasks/prompts/architect.txt || echo 0)
+  run grep -c "^GOAL: Ship a new feature$" .tasks/prompts/architect.txt
+  GOAL_COUNT=${output:-0}
   [ "$GOAL_COUNT" -eq 1 ]
 
   jq -e '.tasks[0].id == "task_01"' .tasks/manifest/dag.json >/dev/null
@@ -87,6 +88,9 @@ SCRIPT
 }
 
 @test "1_architect.sh fails when manifest directory is unwritable" {
+  # Create directories first
+  mkdir -p .tasks/manifest .tasks/prompts
+
   # Make the manifest directory unwritable
   chmod -w .tasks/manifest
 

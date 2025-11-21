@@ -7,10 +7,15 @@ RUN apt-get update \
        bats jq coreutils findutils bash \
     && rm -rf /var/lib/apt/lists/*
 
+# Run tests as a non-root user so permission checks in BATS behave correctly
+RUN useradd -m -u 1000 testuser
+
 WORKDIR /app
 
-# Copy the repository into the container for isolated testing
-COPY . /app
+# Copy code as the non-root user to keep ownership consistent
+COPY --chown=testuser:testuser . /app
+
+USER testuser
 
 # Ensure scripts are executable inside the image
 # Use find to recursively mark all .sh and .bats files executable

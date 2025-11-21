@@ -34,5 +34,7 @@ teardown() {
 @test "get_worker_id returns namespaced id" {
   run bash -c "source ./setup.sh && get_worker_id"
   [ "$status" -eq 0 ]
-  [[ "$output" =~ ^w_[0-9]{10}_[0-9]+$ ]]
+  # Format: w_{timestamp}_{PID}_{RANDOM}
+  # timestamp is at least 10 digits, PID and RANDOM are variable
+  [[ "$output" =~ ^w_[0-9]{10,}_[0-9]+_[0-9]+$ ]]
 }

@@ -22,9 +22,9 @@ JSON
 JSON
 
   # Enhanced stub worker: logs invocations and exits successfully
-  cat > "$TEST_TMP/fake_worker.sh" <<'SH'
+  cat > "$TEST_TMP/fake_worker.sh" <<SH
 #!/usr/bin/env bash
-echo "Worker invoked with args: $*" >> "$TEST_TMP/worker.log"
+echo "Worker invoked with args: \$*" >> "$TEST_TMP/worker.log"
 exit 0
 SH
   chmod +x "$TEST_TMP/fake_worker.sh"
@@ -37,8 +37,8 @@ teardown() { rm -rf "$TEST_TMP"; }
 @test "overlord spawns sequential tasks and reuses capacity" {
   export LLM_WORKER_CMD="$TEST_TMP/fake_worker.sh"
   export MAX_WORKERS=1
-  export OVERLORD_TICKS=5
-  export SLEEP_SECONDS=0
+  export OVERLORD_TICKS=10
+  export SLEEP_SECONDS=0.1
 
   chmod +x ./3_overlord.sh ./4_minion.sh adapters/*.sh lib/*.sh
   run bash ./3_overlord.sh

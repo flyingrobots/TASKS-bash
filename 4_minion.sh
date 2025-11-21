@@ -32,8 +32,20 @@ if [ ! -f "$TASK_FILE" ]; then
   exit 1
 fi
 
+# Validate JSON structure before proceeding
+if ! jq empty "$TASK_FILE" 2>/dev/null; then
+  port_log_error "Task file contains invalid JSON: $task_id"
+  exit 1
+fi
+
 description=$(jq -r '.description // ""' "$TASK_FILE")
 prompt="Execute task $task_id: $description"
+
+# Verify log directory is writable before execution
+if [ ! -w "$TASKS_DIR/logs" ]; then
+  port_log_error "Log directory is not writable: $TASKS_DIR/logs"
+  exit 1
+fi
 
 call_llm_worker "$prompt" >"$LOG_FILE" 2>&1
 status=$?
@@ -63,7 +75,12 @@ if [ -z "$worker_id" ] || [ ! -d "$TASKS_DIR/claimed/$worker_id" ]; then
   port_log_error "Invalid cleanup state for worker_id=$worker_id"
   exit 1
 fi
-rm -rf "$TASKS_DIR/claimed/$worker_id"
-rm -f "$TASKS_DIR/pids/$worker_id.pid"
+
+if ! rm -rf "$TASKS_DIR/claimed/$worker_id"; then
+  port_log_error "Failed to clean up worker directory: $worker_id"
+  exit 1
+fi
+
+rm -f "$TASKS_DIR/pids/$worker_id.pid" 2>/dev/null || true
 
 exit $status
