@@ -68,7 +68,6 @@ JSON
 
 @test "minion fails on malformed task JSON" {
   # Create task file with invalid JSON
-  # Generate unique IDs to avoid collisions
   local worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
   local task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
   rm -f ".tasks/closed/${task_id}.json" ".tasks/dead/${task_id}.json"
@@ -85,7 +84,6 @@ JSON
 }
 @test "minion fails when task file is missing" {
   # Start with nonexistent task file
-  # Generate unique IDs to avoid collisions
   local worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
   local task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
   mkdir -p ".tasks/claimed/${worker_id}"
@@ -101,7 +99,6 @@ JSON
   # Make logs directory unwritable
   chmod -w .tasks/logs
 
-  # Generate unique IDs to avoid collisions
   local worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
   local task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
 
@@ -130,7 +127,8 @@ JSON
 {"id":"${task_id}","description":"test"}
 JSON
 
-  # Make claimed directory read-only
+  # Make claimed directory read-only and guarantee restoration
+  trap 'chmod -R +w .tasks/claimed 2>/dev/null || true' EXIT
   chmod -w .tasks/claimed
 
   export LLM_WORKER_CMD="$TEST_TMP/fake_worker_success.sh"

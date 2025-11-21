@@ -15,7 +15,8 @@ if [ "${TASKS_SKIP_LOCKDOWN:-0}" = "1" ]; then
   }
 else
   old_umask=$(umask)
-  trap 'umask "$old_umask"' EXIT INT TERM HUP ERR
+  cleanup_umask() { umask "$old_umask"; trap - EXIT INT TERM HUP ERR; }
+  trap cleanup_umask EXIT INT TERM HUP ERR
   umask 077
   mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids} || {
     echo "Error: failed to create task directories under $TASKS_DIR" >&2
@@ -32,8 +33,7 @@ else
     exit 1
   fi
 
-  umask "$old_umask"
-  trap - EXIT INT TERM HUP ERR
+  cleanup_umask
 fi
 
 # Worker Configuration
@@ -56,15 +56,14 @@ export LLM_PLANNER_CMD="${LLM_PLANNER_CMD:-claude -p}"
 # Note: We use --dangerously-skip-permissions for full autonomy.
 LLM_WORKER_CMD_STR=${LLM_WORKER_CMD_STR:-${LLM_WORKER_CMD:-"claude --dangerously-skip-permissions"}}
 export LLM_WORKER_CMD_STR
-# shellcheck disable=SC2206
-LLM_WORKER_CMD=(${LLM_WORKER_CMD_STR})
+read -ra LLM_WORKER_CMD <<<"$LLM_WORKER_CMD_STR"
 
 # Helper function to generate a high-entropy worker ID
 get_worker_id() {
     # High-entropy worker id: urandom hex (16 bytes) with timestamp/pid suffix for traceability
     local rand
-  if rand=$(head -c 16 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n'); then
-    :
+  if rand=$(head -c 16 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n') && [ -n "${rand}" ]; then
+    rand="$rand"
   elif command -v uuidgen >/dev/null 2>&1; then
     rand=$(uuidgen | tr -d '-\n')
   else

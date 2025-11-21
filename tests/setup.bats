@@ -26,7 +26,11 @@ teardown() {
 
   for dir in "${expected[@]}"; do
     [ "$(find ".tasks/${dir}" -mindepth 1 | wc -l)" -eq 0 ]
-  perms=$(stat -c '%a' ".tasks/${dir}" 2>/dev/null || stat -f '%Lp' ".tasks/${dir}")
+    perms=$(stat -c '%a' ".tasks/${dir}" 2>/dev/null || stat -f '%Lp' ".tasks/${dir}" 2>/dev/null || true)
+    if [ -z "$perms" ]; then
+      echo "stat failed to read permissions for .tasks/${dir}" >&2
+      return 1
+    fi
     perms=${perms#0}
     [ "$perms" = "700" ]
   done
@@ -50,11 +54,14 @@ teardown() {
   id1="${ids[0]}"; id2="${ids[1]}"
   [[ "$id1" =~ ^w_[A-Za-z0-9]+_[0-9]+_[0-9]+$ ]]
   [[ "$id2" =~ ^w_[A-Za-z0-9]+_[0-9]+_[0-9]+$ ]]
-  IFS='_' read -r p1 rand1 ts1 pid1 <<<"$id1"
-  IFS='_' read -r p2 rand2 ts2 pid2 <<<"$id2"
-  [[ -n "$p1" && -n "$rand1" && -n "$ts1" && -n "$pid1" ]]
-  [[ -n "$p2" && -n "$rand2" && -n "$ts2" && -n "$pid2" ]]
-  [ "$rand1" != "$rand2" ] || [ "$ts1" != "$ts2" ] || [ "$pid1" != "$pid2" ]
+  IFS='_' read -r prefix1 rand1 ts1 pid1 <<<"$id1"
+  IFS='_' read -r prefix2 rand2 ts2 pid2 <<<"$id2"
+  [ "$prefix1" = "w" ]
+  [ "$prefix2" = "w" ]
+  [[ -n "$rand1" && -n "$ts1" && -n "$pid1" ]]
+  [[ -n "$rand2" && -n "$ts2" && -n "$pid2" ]]
+  [ "$id1" != "$id2" ]
+  [ "$rand1" != "$rand2" ] || [ "$ts1" != "$ts2" ]
 }
 
 @test "TASKS_SKIP_LOCKDOWN leaves default permissions" {
