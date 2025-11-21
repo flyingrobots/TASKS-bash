@@ -52,20 +52,29 @@ export LLM_PLANNER_CMD="${LLM_PLANNER_CMD:-claude -p}"
 
 # 2. The Worker (Minion)
 # Requirements: Must be capable of File I/O (editing files in place).
-# Input format: LLM_WORKER_CMD string; converted to array for execution.
+# Input format: Preferred LLM_WORKER_CMD_JSON as a JSON array of strings; defaults to claude if unset.
 # Note: We use --dangerously-skip-permissions for full autonomy.
 LLM_WORKER_CMD_DEFAULT=(claude --dangerously-skip-permissions)
-# Choose worker command: prefer existing array, else string override (single element), else default array.
-if declare -p LLM_WORKER_CMD 2>/dev/null | grep -q 'declare -a'; then
-  :  # already an array
-elif [ -n "${LLM_WORKER_CMD:-}" ]; then
-  LLM_WORKER_CMD=("$LLM_WORKER_CMD")
+
+# Resolve worker command (JSON only + default)
+if [ -n "${LLM_WORKER_CMD_JSON:-}" ]; then
+  if ! mapfile -t LLM_WORKER_CMD < <(printf '%s' "$LLM_WORKER_CMD_JSON" | jq -r 'if type=="array" then .[] else error("LLM_WORKER_CMD_JSON must be an array") end'); then
+    echo "Error: LLM_WORKER_CMD_JSON must be a JSON array of strings" >&2
+    exit 1
+  fi
 else
   LLM_WORKER_CMD=("${LLM_WORKER_CMD_DEFAULT[@]}")
 fi
+
+if [ ${#LLM_WORKER_CMD[@]} -eq 0 ]; then
+  echo "Error: LLM_WORKER_CMD is empty after initialization" >&2
+  exit 1
+fi
+
 export LLM_WORKER_CMD
-# For logging/tests, keep a string form mirroring the resolved array
-LLM_WORKER_CMD_STR="${LLM_WORKER_CMD[*]}"
+# For logging/tests, keep a shell-escaped string form mirroring the resolved array
+LLM_WORKER_CMD_STR=$(printf '%q ' "${LLM_WORKER_CMD[@]}")
+LLM_WORKER_CMD_STR=${LLM_WORKER_CMD_STR%% }  # trim trailing space
 export LLM_WORKER_CMD_STR
 
 # Helper function to generate a high-entropy worker ID

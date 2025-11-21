@@ -32,7 +32,7 @@ teardown() {
 
 @test "architect -> seeder -> overlord produces markdown previewer" {
   export LLM_PLANNER_CMD="tests/fixtures/fake_planner.sh"
-  export LLM_WORKER_CMD="tests/fixtures/fake_worker.sh"
+  export LLM_WORKER_CMD_JSON='["tests/fixtures/fake_worker.sh"]'
   export OVERLORD_TICKS=20
   export MAX_WORKERS=3
   export SLEEP_SECONDS=0
