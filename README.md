@@ -1,6 +1,6 @@
-# T.A.S.K.S. (Ultimate Bash Suite)
+# T.A.S.K.S.
 
-***T**asks **A**re **S**equenced **K**ey **S**teps** is a file-system-based autonomous agent runner. It turns a goal into a dependency-ordered DAG, manages tasks via the filesystem, and drives parallel LLM workers to get the work done.
+**T**asks **A**re **S**equenced **K**ey **S**teps is a file-system-based autonomous agent runner. It turns a goal into a dependency-ordered DAG, manages tasks via the filesystem, and drives parallel LLM workers to get the work done.
 
 > [!WARNING]
 > This gives an LLM write access to your workspace. Run inside git (or a Docker container that copies the repo in) so you can revert if things go sideways.
@@ -67,6 +67,14 @@ All config lives in `setup.sh`. You can override via env vars before running:
 - `MAX_WORKERS` (default `4`): cap concurrent workers.
 - `LLM_PLANNER_CMD` (default `claude -p`): planner that outputs JSON.
 - `LLM_WORKER_CMD` (default `claude --dangerously-skip-permissions`): worker used for edits.
+
+> [!CAUTION]
+> **About `--dangerously-skip-permissions`**: This flag bypasses Claude Code's permission prompts for file modifications, allowing autonomous agents to edit files without user confirmation. **Risks**: Unvetted code changes, potential data corruption, or unintended modifications. **Use only in**:
+> - Trusted development environments with version control (git)
+> - Non-production workspaces where changes can be safely reverted
+> - Contexts where you've reviewed the generated plan (`dag.json`) beforehand
+>
+> **Recommended mitigations**: Always run inside a git repo, review logs in `.tasks/logs/`, and inspect diffs before committing. For production use, remove this flag and handle confirmations manually, or use a sandboxed container.
 
 Example using a Python OpenAI wrapper:
 

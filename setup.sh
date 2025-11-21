@@ -28,7 +28,10 @@ export LLM_PLANNER_CMD="${LLM_PLANNER_CMD:-claude -p}"
 # Note: We use --dangerously-skip-permissions for full autonomy.
 export LLM_WORKER_CMD="${LLM_WORKER_CMD:-claude --dangerously-skip-permissions}"
 
-# Helper function to generate a timestamped worker ID
+# Helper function to generate a high-entropy worker ID
 get_worker_id() {
-    echo "w_$(date +%s)_$RANDOM"
+    # Use nanosecond timestamp + PID + RANDOM for uniqueness
+    # Falls back to seconds if %N is not supported (e.g., macOS)
+    local timestamp=$(date +%s%N 2>/dev/null || echo "$(date +%s)000000000")
+    echo "w_${timestamp}_$$_$RANDOM"
 }

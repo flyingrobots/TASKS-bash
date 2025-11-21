@@ -6,9 +6,9 @@ cat <<'JSON'
 {
   "tasks": [
     {
+      "description": "Test task created by fake planner",
       "id": "task_01",
-      "title": "Example Task",
-      "description": "Test task created by fake planner"
+      "title": "Example Task"
     }
   ]
 }

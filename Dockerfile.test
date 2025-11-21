@@ -13,6 +13,7 @@ WORKDIR /app
 COPY . /app
 
 # Ensure scripts are executable inside the image
-RUN chmod +x *.sh adapters/*.sh lib/*.sh tests/*.bats tests/fixtures/fake_planner.sh
+# Use find to recursively mark all .sh and .bats files executable
+RUN find . -type f \( -name '*.sh' -o -name '*.bats' \) -exec chmod +x {} +
 
 CMD ["bats", "tests"]
