@@ -34,7 +34,24 @@ jq -c '.tasks[]' "$DAG_FILE" | while read -r task; do
     fi
 
     sanitized_task=$(echo "$task" | jq --arg id "$id" --argjson deps "$deps_json" '.id = $id | .dependencies = $deps')
-    echo "$sanitized_task" > "$target"
+
+    target_dir=$(dirname "$target")
+    mkdir -p "$target_dir" 2>/dev/null || { port_log_error "❌ Cannot create target directory $target_dir"; exit 1; }
+
+    tmpfile=$(mktemp "$target_dir/.tmp.${id}.XXXX") || { port_log_error "❌ Failed to create temp file for $target"; exit 1; }
+
+    if ! printf '%s\n' "$sanitized_task" > "$tmpfile"; then
+        port_log_error "❌ Failed to write task $id to $tmpfile"
+        rm -f "$tmpfile"
+        exit 1
+    fi
+
+    if ! mv "$tmpfile" "$target"; then
+        port_log_error "❌ Failed to place task $id at $target"
+        rm -f "$tmpfile"
+        exit 1
+    fi
+
     port_log_info "Seeded $id -> $(basename $(dirname "$target"))"
 done
 
