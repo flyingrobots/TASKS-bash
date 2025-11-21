@@ -1,4 +1,4 @@
-name: CLI E2E (deterministic plan)
+name: CLI E2E
 
 on:
   workflow_dispatch:

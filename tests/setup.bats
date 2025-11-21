@@ -19,17 +19,16 @@ teardown() {
   expected=(manifest blocked open claimed closed dead logs prompts pids)
 
   # exact directory set
-  actual=( $(find .tasks -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort) )
-  expected_sorted=( $(printf '%s\n' "${expected[@]}" | sort) )
+  mapfile -t actual < <(find .tasks -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
+  mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
   diff_output=$(diff <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}") || true)
   [ -z "$diff_output" ]
 
   for dir in "${expected[@]}"; do
-    [ -d ".tasks/${dir}" ]
     [ "$(find ".tasks/${dir}" -mindepth 1 | wc -l)" -eq 0 ]
-    perms=$(stat -c '%f' ".tasks/${dir}" 2>/dev/null || stat -f '%p' ".tasks/${dir}")
-    # 0700 dirs => Linux raw mode 41c0, BSD/macOS raw mode 040700
-    [[ "$perms" =~ (41c0|040700) ]]
+    perms=$(stat -c '%a' ".tasks/${dir}" 2>/dev/null || stat -f '%A' ".tasks/${dir}")
+    perms=${perms#0}
+    [ "$perms" = "700" ]
   done
 }
 
@@ -37,7 +36,7 @@ teardown() {
   run bash -c 'source ./setup.sh && printf "%s\n%s\n%s\n%s\n" "$TASKS_DIR" "$MAX_WORKERS" "$LLM_PLANNER_CMD" "$LLM_WORKER_CMD"'
   [ "$status" -eq 0 ]
 
-  mapfile -t vars <<<"${output}"
+  mapfile -t vars < <(printf '%s' "$output")
   [ "${vars[0]}" = "$TEST_TMP/.tasks" ]
   [ "${vars[1]}" = "4" ]
   [ "${vars[2]}" = "claude -p" ]
@@ -47,9 +46,21 @@ teardown() {
 @test "get_worker_id returns namespaced id (format)" {
   run bash -c "source ./setup.sh && get_worker_id && get_worker_id"
   [ "$status" -eq 0 ]
-  mapfile -t ids <<<"${output}"
+  mapfile -t ids < <(printf '%s' "$output")
   id1="${ids[0]}"; id2="${ids[1]}"
-  [[ "$id1" =~ ^w_[0-9]{10,}_[0-9]+_[0-9]+$ ]]
-  [[ "$id2" =~ ^w_[0-9]{10,}_[0-9]+_[0-9]+$ ]]
-  [ "$id1" != "$id2" ]
+  [[ "$id1" =~ ^w_[A-Za-z0-9]+_[0-9]+_[0-9]+$ ]]
+  [[ "$id2" =~ ^w_[A-Za-z0-9]+_[0-9]+_[0-9]+$ ]]
+  IFS='_' read -r _ rand1 ts1 pid1 <<<"$id1"
+  IFS='_' read -r _ rand2 ts2 pid2 <<<"$id2"
+  [ "$rand1" != "$rand2" ] || [ "$ts1" != "$ts2" ] || [ "$pid1" != "$pid2" ]
+}
+
+@test "TASKS_SKIP_LOCKDOWN leaves default permissions" {
+  export TASKS_DIR="$TEST_TMP/skiplock"
+  export TASKS_SKIP_LOCKDOWN=1
+  run bash ./setup.sh
+  [ "$status" -eq 0 ]
+
+  perms=$(stat -c '%a' "$TASKS_DIR" 2>/dev/null || stat -f '%Lp' "$TASKS_DIR")
+  [ "$perms" != "700" ]
 }

@@ -1,6 +1,10 @@
 name: BATS Tests
 
 on:
+  pull_request:
+    branches: ['**']
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '0 6 * * 1'  # weekly (Mon 06:00 UTC)
@@ -15,5 +19,6 @@ jobs:
       - name: Build test Docker image
         run: docker build -f Dockerfile.test -t tasks-bash-tests .
 
-      - name: Run BATS test suite
-        run: docker run --rm tasks-bash-tests
+      - name: Run unit/integration BATS (exclude e2e)
+        run: |
+          docker run --rm tasks-bash-tests /bin/bash -c "find tests -maxdepth 1 -name '*.bats' ! -name 'e2e.bats' -print0 | xargs -0 bats"

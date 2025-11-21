@@ -6,5 +6,6 @@ call_llm_worker() {
 
   # Use eval to safely handle multi-word commands with flags
   # LLM_WORKER_CMD should be set in setup.sh (e.g., "claude --dangerously-skip-permissions")
-  echo "$prompt" | eval "$LLM_WORKER_CMD"
+  # Always quote to avoid shell interpretation of prompt contents
+  printf '%s' "$prompt" | eval "$LLM_WORKER_CMD"
 }

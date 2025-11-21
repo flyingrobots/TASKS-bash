@@ -1,14 +1,20 @@
 #!/usr/bin/env bats
 
 setup() {
+  PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
+  if [ ! -d "$PROJECT_ROOT" ]; then
+    echo "Error: PROJECT_ROOT is not a directory: $PROJECT_ROOT" >&2
+    exit 1
+  fi
+
   tmpdir=$(mktemp -d -t e2e_test.XXXXXX)
   mkdir -p "$tmpdir/repo"
-  # Portable copy: find + prune unwanted dirs, pipe through cpio -p
-  (
-    cd "$PROJECT_ROOT" || exit 1
-    find . \( -path './.git' -o -path './node_modules' -o -path './.tasks' \) -prune -o -print |\
-      cpio -pdm "$tmpdir/repo"
-  ) || { echo "Failed to copy repo" >&2; exit 1; }
+
+  # Simple, readable copy with excludes using tar
+  tar -C "$PROJECT_ROOT" \
+      --exclude='.git' --exclude='node_modules' --exclude='.tasks' \
+      -cpf - . | tar -C "$tmpdir/repo" -xpf - || { echo "Failed to copy repo" >&2; exit 1; }
+
   cd "$tmpdir/repo" || { echo "Failed to enter $tmpdir/repo" >&2; exit 1; }
 }
 

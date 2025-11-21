@@ -23,6 +23,20 @@ fi
 source setup.sh
 source adapters/log.sh
 source adapters/llm_worker.sh
+export -f call_llm_worker
+
+cleanup_worker_state() {
+  local reason="$1" task_file="$2" log_file="$3"
+  mkdir -p "$TASKS_DIR/dead" 2>/dev/null || port_log_error "Failed to ensure dead dir for $task_id"
+  if [ -f "$task_file" ]; then
+    mv "$task_file" "$TASKS_DIR/dead/$task_id.json" 2>/dev/null || port_log_error "Failed to move $task_id to dead ($reason)"
+  fi
+  rm -rf "$TASKS_DIR/claimed/$worker_id" 2>/dev/null || port_log_error "Failed to remove claimed dir for $worker_id"
+  rm -f "$TASKS_DIR/pids/$worker_id.pid" 2>/dev/null || true
+  if [ -n "$log_file" ] && [ ! -f "$log_file" ]; then
+    printf '%s\n' "$reason" >"$log_file" 2>/dev/null || true
+  fi
+}
 
 TASK_FILE="$TASKS_DIR/claimed/$worker_id/$task_id.json"
 LOG_FILE="$TASKS_DIR/logs/$task_id.log"
@@ -33,17 +47,16 @@ if [ ! -f "$TASK_FILE" ]; then
 fi
 
 # Validate JSON structure before proceeding
-if ! jq empty "$TASK_FILE" 2>/dev/null; then
-  port_log_error "Task file contains invalid JSON: $task_id"
-  mkdir -p "$TASKS_DIR/dead"
-  mv "$TASK_FILE" "$TASKS_DIR/dead/$task_id.json" 2>/dev/null || true
-  rm -rf "$TASKS_DIR/claimed/$worker_id" 2>/dev/null || true
-  rm -f "$TASKS_DIR/pids/$worker_id.pid" 2>/dev/null || true
+if ! jq empty "$TASK_FILE" 2>"$LOG_FILE"; then
+  port_log_error "Task file contains invalid JSON: $task_id" 
+  cleanup_worker_state "invalid JSON" "$TASK_FILE" "$LOG_FILE"
   exit 1
 fi
 
-description=$(jq -r '.description // ""' "$TASK_FILE")
-prompt="Execute task $task_id: $description"
+# Sanitize description to avoid prompt/shell injection
+description_raw=$(jq -r '.description // ""' "$TASK_FILE")
+description_clean=$(printf '%s' "$description_raw" | tr -cd '[:print:]' | head -c 2000)
+prompt="Execute task $task_id: $description_clean"
 
 # Verify log directory is writable before execution
 if [ ! -w "$TASKS_DIR/logs" ]; then
@@ -51,8 +64,17 @@ if [ ! -w "$TASKS_DIR/logs" ]; then
   exit 1
 fi
 
-call_llm_worker "$prompt" >"$LOG_FILE" 2>&1
-status=$?
+TIMEOUT_SECONDS=${TIMEOUT_SECONDS:-300}
+if command -v timeout >/dev/null 2>&1; then
+  timeout --preserve-status "${TIMEOUT_SECONDS}s" bash -c 'call_llm_worker "$1"' _ "$prompt" >"$LOG_FILE" 2>&1
+  status=$?
+  if [ $status -eq 124 ] || [ $status -eq 137 ]; then
+    port_log_error "LLM worker timed out for $task_id"
+  fi
+else
+  call_llm_worker "$prompt" >"$LOG_FILE" 2>&1
+  status=$?
+fi
 
 # Ensure destination directories exist before moving
 mkdir -p "$TASKS_DIR/closed" "$TASKS_DIR/dead"
@@ -60,29 +82,22 @@ mkdir -p "$TASKS_DIR/closed" "$TASKS_DIR/dead"
 if [ $status -eq 0 ]; then
   if mv "$TASK_FILE" "$TASKS_DIR/closed/$task_id.json"; then
     port_log_info "✅ $task_id closed"
+    rm -rf "$TASKS_DIR/claimed/$worker_id" 2>/dev/null || port_log_error "Failed to remove claimed dir for $worker_id"
+    rm -f "$TASKS_DIR/pids/$worker_id.pid" 2>/dev/null || true
   else
     port_log_error "Failed to move $task_id to closed: $?"
     exit 1
   fi
 else
-  if mv "$TASK_FILE" "$TASKS_DIR/dead/$task_id.json"; then
-    port_log_error "💀 $task_id failed"
-  else
-    port_log_error "Failed to move $task_id to dead: $?"
-    exit 1
-  fi
+  cleanup_worker_state "execution failed (status $status)" "$TASK_FILE" "$LOG_FILE"
 fi
 
 # Clean up claimed worker directory to avoid stale slots
-# Double-check worker_id is valid and directory exists before destructive operation
-if [ -z "$worker_id" ] || [ ! -d "$TASKS_DIR/claimed/$worker_id" ]; then
-  port_log_error "Invalid cleanup state for worker_id=$worker_id"
-  exit 1
-fi
-
-if ! rm -rf "$TASKS_DIR/claimed/$worker_id"; then
-  port_log_error "Failed to clean up worker directory: $worker_id"
-  exit 1
+if [ -n "$worker_id" ] && [ -d "$TASKS_DIR/claimed/$worker_id" ]; then
+  if ! rm -rf "$TASKS_DIR/claimed/$worker_id"; then
+    port_log_error "Failed to clean up worker directory: $worker_id"
+    exit 1
+  fi
 fi
 
 rm -f "$TASKS_DIR/pids/$worker_id.pid" 2>/dev/null || true

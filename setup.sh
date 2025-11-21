@@ -6,10 +6,32 @@
 
 # Directories (allow override for tests)
 export TASKS_DIR="${TASKS_DIR:-$(pwd)/.tasks}"
-mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids}
-# Lock down permissions to owner-only (0700) for task state unless explicitly skipped
-if [ "${TASKS_SKIP_LOCKDOWN:-0}" != "1" ]; then
-  find "$TASKS_DIR" -type d -exec chmod 700 {} +
+
+# Create task directories with error handling and optional lockdown
+if [ "${TASKS_SKIP_LOCKDOWN:-0}" = "1" ]; then
+  mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids} || {
+    echo "Error: failed to create task directories under $TASKS_DIR" >&2
+    exit 1
+  }
+else
+  old_umask=$(umask)
+  umask 077
+  mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids} || {
+    echo "Error: failed to create task directories under $TASKS_DIR" >&2
+    umask "$old_umask"
+    exit 1
+  }
+  umask "$old_umask"
+
+  # Lock down directory and file permissions; fail fast on errors
+  if ! find "$TASKS_DIR" -type d -exec chmod 700 {} +; then
+    echo "Error: failed to set directory permissions in $TASKS_DIR" >&2
+    exit 1
+  fi
+  if ! find "$TASKS_DIR" -type f -exec chmod 600 {} +; then
+    echo "Error: failed to set file permissions in $TASKS_DIR" >&2
+    exit 1
+  fi
 fi
 
 # Worker Configuration
@@ -34,8 +56,16 @@ export LLM_WORKER_CMD="${LLM_WORKER_CMD:-claude --dangerously-skip-permissions}"
 
 # Helper function to generate a high-entropy worker ID
 get_worker_id() {
-    # Use nanosecond timestamp + PID + RANDOM for uniqueness
-    # Falls back to seconds if %N is not supported (e.g., macOS)
-    local timestamp=$(date +%s%N 2>/dev/null || echo "$(date +%s)000000000")
-    echo "w_${timestamp}_$$_$RANDOM"
+    # High-entropy worker id: urandom hex (16 bytes) with timestamp/pid suffix for traceability
+    local rand
+    if rand=$(head -c 16 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n'); then
+        :
+    elif command -v uuidgen >/dev/null 2>&1; then
+        rand=$(uuidgen | tr -d '-\n')
+    else
+        local ts=$(date +%s%N 2>/dev/null || echo "$(date +%s)000000000")
+        rand="fallback${ts}$$$RANDOM"
+    fi
+    local ts_short=$(date +%s)
+    echo "w_${rand}_${ts_short}_$$"
 }

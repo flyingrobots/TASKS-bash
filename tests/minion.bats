@@ -68,8 +68,8 @@ JSON
 
 @test "minion fails on malformed task JSON" {
   # Create task file with invalid JSON
-  worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
-  task_id="task_${worker_id}"
+  local worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
+  local task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
   rm -f ".tasks/closed/${task_id}.json" ".tasks/dead/${task_id}.json"
   mkdir -p ".tasks/claimed/${worker_id}"
   echo "this is not valid JSON at all" > ".tasks/claimed/${worker_id}/${task_id}.json"
@@ -84,8 +84,8 @@ JSON
 }
 @test "minion fails when task file is missing" {
   # Start with nonexistent task file
-  worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
-  task_id="task_${worker_id}"
+  local worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
+  local task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
   mkdir -p ".tasks/claimed/${worker_id}"
   rm -f ".tasks/claimed/${worker_id}/${task_id}.json"
 
@@ -99,8 +99,8 @@ JSON
   # Make logs directory unwritable
   chmod -w .tasks/logs
 
-  worker_id="${BATS_TEST_NUMBER}_$RANDOM"
-  task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
+  local worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
+  local task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
 
   rm -f ".tasks/closed/${task_id}.json" ".tasks/dead/${task_id}.json"
   mkdir -p ".tasks/claimed/${worker_id}"
@@ -118,8 +118,8 @@ JSON
 }
 
 @test "minion reports cleanup failure when claimed dir is read-only" {
-  worker_id="${BATS_TEST_NUMBER}_$RANDOM"
-  task_id="task_${worker_id}"
+  local worker_id="w_${BATS_TEST_NUMBER}_$RANDOM"
+  local task_id="task_${BATS_TEST_NUMBER}_$RANDOM"
 
   rm -f ".tasks/closed/${task_id}.json" ".tasks/dead/${task_id}.json"
   mkdir -p ".tasks/claimed/${worker_id}"

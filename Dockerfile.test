@@ -4,13 +4,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-       bats jq coreutils findutils bash rsync cpio \
+       bats jq coreutils findutils bash cpio \
     && rm -rf /var/lib/apt/lists/*
 
 # Run tests as a non-root user so permission checks in BATS behave correctly
 RUN useradd -m -u 1000 testuser
 
 WORKDIR /app
+
+# Ensure workspace is writable by test user
+RUN chown testuser:testuser /app
 
 # Copy code as the non-root user to keep ownership consistent
 COPY --chown=testuser:testuser . /app
