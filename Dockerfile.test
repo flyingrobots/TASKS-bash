@@ -12,9 +12,6 @@ RUN useradd -m -u 1000 testuser
 
 WORKDIR /app
 
-# Ensure workspace is writable by test user
-RUN chown testuser:testuser /app
-
 # Copy code as the non-root user to keep ownership consistent
 COPY --chown=testuser:testuser . /app
 

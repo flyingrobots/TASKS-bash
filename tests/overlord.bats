@@ -35,7 +35,7 @@ SH
 teardown() { rm -rf "$TEST_TMP"; }
 
 @test "overlord spawns sequential tasks and reuses capacity" {
-  export LLM_WORKER_CMD_JSON='["'$TEST_TMP'/fake_worker.sh"]'
+  export LLM_WORKER_CMD_JSON=$(jq -nc --arg cmd "$TEST_TMP/fake_worker.sh" '[ $cmd ]')
   export MAX_WORKERS=1
   export OVERLORD_TICKS=10
   export SLEEP_SECONDS=0.1

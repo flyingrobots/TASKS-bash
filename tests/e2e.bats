@@ -4,7 +4,7 @@ setup() {
   PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
   if [ ! -d "$PROJECT_ROOT" ]; then
     echo "Error: PROJECT_ROOT is not a directory: $PROJECT_ROOT" >&2
-    exit 1
+    return 1
   fi
 
   tmpdir=$(mktemp -d -t e2e_test.XXXXXX)
@@ -13,9 +13,9 @@ setup() {
   # Simple, readable copy with excludes using tar
   tar -C "$PROJECT_ROOT" \
       --exclude='.git' --exclude='node_modules' --exclude='.tasks' \
-      -cpf - . | tar -C "$tmpdir/repo" -xpf - || { echo "Failed to copy repo" >&2; exit 1; }
+      -cpf - . | tar -C "$tmpdir/repo" -xpf - || { echo "Failed to copy repo" >&2; return 1; }
 
-  cd "$tmpdir/repo" || { echo "Failed to enter $tmpdir/repo" >&2; exit 1; }
+  cd "$tmpdir/repo" || { echo "Failed to enter $tmpdir/repo" >&2; return 1; }
 }
 
 teardown() {
@@ -23,10 +23,10 @@ teardown() {
     pwd_cur=$(pwd)
     case "$pwd_cur" in
       "$tmpdir"* )
-        cd / || { echo "Warning: Could not leave $tmpdir" >&2; return; }
+        cd / || { echo "Warning: Could not leave $tmpdir" >&2; return 1; }
         ;;
     esac
-    rm -rf "$tmpdir" || echo "Warning: Failed to remove $tmpdir" >&2
+    rm -rf "$tmpdir" || { echo "Warning: Failed to remove $tmpdir" >&2; return 1; }
   fi
 }
 
@@ -68,8 +68,6 @@ teardown() {
 
   log_count=$(find .tasks/logs -name '*.log' -type f 2>/dev/null | wc -l)
   [ "$log_count" -ge 4 ]
-  grep -q "Watch mode" README.md
-
-  log_count=$(ls .tasks/logs/*.log 2>/dev/null | wc -l)
-  [ "$log_count" -ge 4 ]
+  run grep -q "Watch mode" README.md
+  [ "$status" -eq 0 ]
 }

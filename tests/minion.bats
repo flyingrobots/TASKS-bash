@@ -96,7 +96,7 @@ JSON
   export LLM_WORKER_CMD_JSON
   run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]
-  [[ "$output" =~ not\ found ]]
+  [[ "$output" =~ Task\ file\ not\ found\ for ]]
 }
 
 @test "minion fails when log directory is unwritable" {
@@ -117,6 +117,7 @@ JSON
   export TASKS_SKIP_LOCKDOWN=1
   run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]
+  [ ! -f ".tasks/logs/${task_id}.log" ]
 
   # Restore permissions for cleanup
   chmod +w .tasks/logs

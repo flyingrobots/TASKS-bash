@@ -60,36 +60,36 @@ chmod +x setup.sh 1_architect.sh 2_seeder.sh 3_overlord.sh 4_minion.sh 5_status.
 └── logs/            # 📄 Stdout/Stderr logs for every execution
 ```
 
+## Setup & Permissions
+
+- `./setup.sh` builds the `.tasks/` tree. By default it sets `umask 077` and enforces `0700` on directories and `0600` on files (defensive hardening).
+- Set `TASKS_SKIP_LOCKDOWN=1` to skip the chmod step (useful on shared or constrained filesystems); structure is still created.
+- Errors are reported to stderr and the script returns/non-zero without killing the parent shell when sourced.
+- `jq` is required if you set `LLM_WORKER_CMD_JSON`; otherwise only Bash and coreutils/find are needed.
+
 ## Configuration & LLM Swaps
 
-All config lives in `setup.sh`. You can override via env vars before running:
+All runtime config lives in `setup.sh`. Override via env vars before running:
 
-- `MAX_WORKERS` (default `4`): cap concurrent workers.
-- `LLM_PLANNER_CMD` (default `claude -p`): planner that outputs JSON.
-- `LLM_WORKER_CMD` (default `claude --dangerously-skip-permissions`): worker used for edits.
+- `TASKS_DIR` (default `$(pwd)/.tasks`): location of the state tree.
+- `TASKS_SKIP_LOCKDOWN=1`: create the tree without chmod 700/600 (useful in shared or constrained filesystems).
+- `MAX_WORKERS` (default `4`): max concurrent minions.
+- `TIMEOUT_SECONDS` (default `300`): per-task timeout applied around the worker command.
+- `LLM_PLANNER_CMD` (default `claude -p`): planner that reads the prompt file and goal, writes JSON DAG to stdout.
+- `LLM_WORKER_CMD_JSON` (preferred): JSON array of argv tokens for the worker. Required format: non-empty array of strings. Example:
+  ```bash
+  export LLM_WORKER_CMD_JSON='["python3","my_worker.py","--mode","edit"]'
+  ```
+  `setup.sh` parses this with `jq`, fails fast if jq is missing or JSON is malformed/empty, and exports `LLM_WORKER_CMD` (array) plus a shell-escaped `LLM_WORKER_CMD_STR` for logging.
+- Default worker (when `LLM_WORKER_CMD_JSON` is unset): `claude --dangerously-skip-permissions` executed as argv (no shell). Swap it by setting `LLM_WORKER_CMD_JSON`.
 
 > [!CAUTION]
-> **About `--dangerously-skip-permissions`**: This flag bypasses Claude Code's permission prompts for file modifications, allowing autonomous agents to edit files without user confirmation. **Risks**: Unvetted code changes, potential data corruption, or unintended modifications. **Use only in**:
-> - Trusted development environments with version control (git)
-> - Non-production workspaces where changes can be safely reverted
-> - Contexts where you've reviewed the generated plan (`dag.json`) beforehand
->
-> **Recommended mitigations**: Always run inside a git repo, review logs in `.tasks/logs/`, and inspect diffs before committing. For production use, remove this flag and handle confirmations manually, or use a sandboxed container.
+> The default worker uses `--dangerously-skip-permissions`, which bypasses Claude Code confirmation prompts and grants write access. Use only inside a disposable workspace or git repo, and review `.tasks/logs/*.log` plus `git diff` before committing.
 
-Example using a Python OpenAI wrapper:
-
-```python
-# gpt_runner.py
-import sys
-prompt = sys.argv[-1]
-# ... call OpenAI ...
-print(response_content)
-```
-
-```bash
-export LLM_PLANNER_CMD="python3 gpt_runner.py"
-export LLM_WORKER_CMD="python3 gpt_runner.py"
-```
+Notes on command execution:
+- The worker receives the prompt on STDIN; arguments are not shell-expanded (array is executed directly).
+- Paths/flags containing spaces or quotes must be separate JSON array elements—do **not** rely on shell splitting.
+- Planner remains string-based for simplicity; it is invoked as a single command line (`$LLM_PLANNER_CMD <prompt> <goal>`). If your planner needs complex argv, wrap it in a small shim script.
 
 ## Components At a Glance
 
@@ -111,10 +111,13 @@ export LLM_WORKER_CMD="python3 gpt_runner.py"
 - **Revive failed tasks**: `./6_revive.sh` moves `dead/` -> `open/`.
 - **Plans lack context**: bump scan depth in `1_architect.sh` (`find . -maxdepth 6 ...`).
 
-## Testing
+## Testing & CI
 
-Dockerized Bats suite lives in `tests/`. Run everything in isolation:
+- Fast suite (no e2e): `make test` (runs Bats minus `tests/e2e.bats`).
+- E2E only: `make test-e2e` (fails fast if `tests/e2e.bats` is missing).
+- Dockerized all-tests: `./run-tests.sh` (builds `Dockerfile.test`, runs the full Bats suite in-container).
 
-```bash
-./run-tests.sh
-```
+CI layout:
+- `.github/workflows/ci.yml`: ShellCheck on scripts (fast PR gate).
+- `.github/workflows/bats-tests.yml`: non-e2e tests in Docker with Buildx cache; ignores doc-only PRs; uploads logs on failure.
+- `.github/workflows/cli-e2e.yml`: e2e tests kept separate so long runs do not block main CI.

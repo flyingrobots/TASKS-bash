@@ -8,30 +8,27 @@
 export TASKS_DIR="${TASKS_DIR:-$(pwd)/.tasks}"
 
 # Create task directories with error handling and optional lockdown
-if [ "${TASKS_SKIP_LOCKDOWN:-0}" = "1" ]; then
-  mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids} || {
-    echo "Error: failed to create task directories under $TASKS_DIR" >&2
+fail() {
+  echo "$1" >&2
+  if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
     exit 1
-  }
+  else
+    return 1
+  fi
+}
+
+if [ "${TASKS_SKIP_LOCKDOWN:-0}" = "1" ]; then
+  mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids} || fail "Error: failed to create task directories under $TASKS_DIR"
 else
   old_umask=$(umask)
   cleanup_umask() { umask "$old_umask"; trap - EXIT INT TERM HUP ERR; }
   trap cleanup_umask EXIT INT TERM HUP ERR
   umask 077
-  mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids} || {
-    echo "Error: failed to create task directories under $TASKS_DIR" >&2
-    exit 1
-  }
+  mkdir -p "$TASKS_DIR"/{manifest,blocked,open,claimed,closed,dead,logs,prompts,pids} || fail "Error: failed to create task directories under $TASKS_DIR"
 
-  # Lock down directory and file permissions; fail fast on errors
-  if ! find "$TASKS_DIR" -type d -exec chmod 700 {} +; then
-    echo "Error: failed to set directory permissions in $TASKS_DIR" >&2
-    exit 1
-  fi
-  if ! find "$TASKS_DIR" -type f -exec chmod 600 {} +; then
-    echo "Error: failed to set file permissions in $TASKS_DIR" >&2
-    exit 1
-  fi
+  # Lock down permissions: 700 for dirs, 600 for files (defensive for future files)
+  find "$TASKS_DIR" -type d -exec chmod 700 {} + || fail "Error: failed to set directory permissions in $TASKS_DIR"
+  find "$TASKS_DIR" -type f -exec chmod 600 {} + || fail "Error: failed to set file permissions in $TASKS_DIR"
 
   cleanup_umask
 fi
@@ -96,21 +93,22 @@ export LLM_WORKER_CMD_STR
 
 # Helper function to generate a high-entropy worker ID
 get_worker_id() {
-    # High-entropy worker id: urandom hex (16 bytes) with timestamp/pid suffix for traceability
-    local rand
+  # High-entropy worker id: urandom hex (16 bytes) with timestamp/pid suffix for traceability
+  local rand
   if rand=$(head -c 16 /dev/urandom 2>/dev/null | od -An -tx1 | tr -d ' \n') && [ -n "${rand}" ]; then
-    rand="$rand"
+    : # success
   elif command -v uuidgen >/dev/null 2>&1; then
     rand=$(uuidgen | tr -d '-\n')
   else
     local ts=$(date +%s%N 2>/dev/null || echo "$(date +%s)000000000")
-    rand="fallback${ts}$$$RANDOM"
+    rand="fallback${ts}$$${RANDOM}"
   fi
   if [ -z "${rand// /}" ]; then
     local ts=$(date +%s%N 2>/dev/null || echo "$(date +%s)000000000")
-    rand="fallback${ts}$$$RANDOM"
+    rand="fallback${ts}$$${RANDOM}"
     echo "Warning: rand generation empty, using fallback" >&2
   fi
-    local ts_short=$(date +%s)
-    echo "w_${rand}_${ts_short}_$$"
+  local ts_short
+  ts_short=$(date +%s)
+  echo "w_${rand}_${ts_short}_$$"
 }

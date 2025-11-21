@@ -31,7 +31,7 @@ SH
 @test "renders README to HTML" {
   run app/preview.sh README.md public/index.html
   [ "$status" -eq 0 ]
-  grep "<html>" public/index.html
+  grep -q "<html>" public/index.html
 }
 BATS
     chmod +x tests/preview.bats

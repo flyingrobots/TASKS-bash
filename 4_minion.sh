@@ -23,10 +23,10 @@ fi
 source setup.sh
 source adapters/log.sh
 source adapters/llm_worker.sh
-export -f call_llm_worker
 
 cleanup_worker_state() {
   local reason="$1" task_file="$2" log_file="$3"
+  # Best-effort cleanup; partial failures are logged
   mkdir -p "$TASKS_DIR/dead" 2>/dev/null || port_log_error "Failed to ensure dead dir for $task_id"
   if [ -f "$task_file" ]; then
     mv "$task_file" "$TASKS_DIR/dead/$task_id.json" 2>/dev/null || port_log_error "Failed to move $task_id to dead ($reason)"
@@ -86,6 +86,7 @@ if [ $status -eq 0 ]; then
     port_log_info "✅ $task_id closed"
   else
     port_log_error "Failed to move $task_id to closed: $?"
+    cleanup_worker_state "move-to-closed failed (status $status)" "$TASK_FILE" "$LOG_FILE"
     cleanup_fail=1
   fi
 else
@@ -93,12 +94,13 @@ else
 fi
 
 # Unified cleanup that does not override task exit status unless cleanup fails
-if [ -n "$worker_id" ] && [ -d "$TASKS_DIR/claimed/$worker_id" ]; then
+if [ $status -eq 0 ] && [ -n "$worker_id" ] && [ -d "$TASKS_DIR/claimed/$worker_id" ]; then
   rm -rf "$TASKS_DIR/claimed/$worker_id" 2>/dev/null || { port_log_error "Failed to clean up worker directory: $worker_id"; cleanup_fail=1; }
 fi
 rm -f "$TASKS_DIR/pids/$worker_id.pid" 2>/dev/null || true
 
 if [ $cleanup_fail -ne 0 ] && [ $status -eq 0 ]; then
+  port_log_error "Cleanup failed after successful task for $task_id (worker $worker_id)"
   status=1
 fi
 
