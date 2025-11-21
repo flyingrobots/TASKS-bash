@@ -58,8 +58,25 @@ LLM_WORKER_CMD_DEFAULT=(claude --dangerously-skip-permissions)
 
 # Resolve worker command (JSON only + default)
 if [ -n "${LLM_WORKER_CMD_JSON:-}" ]; then
-  if ! mapfile -t LLM_WORKER_CMD < <(printf '%s' "$LLM_WORKER_CMD_JSON" | jq -r 'if type=="array" then .[] else error("LLM_WORKER_CMD_JSON must be an array") end'); then
-    echo "Error: LLM_WORKER_CMD_JSON must be a JSON array of strings" >&2
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "Error: jq is required to parse LLM_WORKER_CMD_JSON" >&2
+    exit 1
+  fi
+  jq_tmp_err=$(mktemp)
+  jq_output=$(printf '%s' "$LLM_WORKER_CMD_JSON" | jq -r 'if type=="array" and length>0 then .[] else error("LLM_WORKER_CMD_JSON must be a non-empty array") end' 2>"$jq_tmp_err") || {
+    err_msg=$(cat "$jq_tmp_err" 2>/dev/null || true)
+    rm -f "$jq_tmp_err"
+    if [ -n "$err_msg" ]; then
+      echo "$err_msg" >&2
+    else
+      echo "Error: LLM_WORKER_CMD_JSON must be a JSON array of strings" >&2
+    fi
+    exit 1
+  }
+  rm -f "$jq_tmp_err"
+  mapfile -t LLM_WORKER_CMD <<<"$jq_output"
+  if [ ${#LLM_WORKER_CMD[@]} -eq 0 ]; then
+    echo "Error: LLM_WORKER_CMD_JSON must not be empty" >&2
     exit 1
   fi
 else

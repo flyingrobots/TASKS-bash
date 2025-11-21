@@ -38,7 +38,8 @@ teardown() { rm -rf "$TEST_TMP"; }
 {"id":"${task_id}","description":"do something"}
 JSON
 
-  export LLM_WORKER_CMD_JSON='["'$TEST_TMP'/fake_worker_success.sh"]'
+  LLM_WORKER_CMD_JSON=$(jq -nc --arg p "$TEST_TMP/fake_worker_success.sh" '[ $p ]')
+  export LLM_WORKER_CMD_JSON
   run bash ./4_minion.sh "${worker_id}" "${task_id}"
   [ "$status" -eq 0 ]
   [ -f ".tasks/closed/${task_id}.json" ]
@@ -58,7 +59,8 @@ JSON
 {"id":"${task_id}","description":"do something"}
 JSON
 
-  export LLM_WORKER_CMD_JSON='["'$TEST_TMP'/fake_worker_fail.sh"]'
+  LLM_WORKER_CMD_JSON=$(jq -nc --arg p "$TEST_TMP/fake_worker_fail.sh" '[ $p ]')
+  export LLM_WORKER_CMD_JSON
   run bash ./4_minion.sh "${worker_id}" "${task_id}"
   [ "$status" -ne 0 ]
   [ -f ".tasks/dead/${task_id}.json" ]
@@ -74,7 +76,8 @@ JSON
   mkdir -p ".tasks/claimed/${worker_id}"
   echo "this is not valid JSON at all" > ".tasks/claimed/${worker_id}/${task_id}.json"
 
-  export LLM_WORKER_CMD_JSON='["'$TEST_TMP'/fake_worker_success.sh"]'
+  LLM_WORKER_CMD_JSON=$(jq -nc --arg p "$TEST_TMP/fake_worker_success.sh" '[ $p ]')
+  export LLM_WORKER_CMD_JSON
   run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]
   [[ "$output" =~ (JSON|parse|jq) ]]  # Regex is clearer than substring glob
@@ -89,7 +92,8 @@ JSON
   mkdir -p ".tasks/claimed/${worker_id}"
   rm -f ".tasks/claimed/${worker_id}/${task_id}.json"
 
-  export LLM_WORKER_CMD_JSON='["'$TEST_TMP'/fake_worker_success.sh"]'
+  LLM_WORKER_CMD_JSON=$(jq -nc --arg p "$TEST_TMP/fake_worker_success.sh" '[ $p ]')
+  export LLM_WORKER_CMD_JSON
   run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]
   [[ "$output" =~ not\ found ]]
@@ -108,7 +112,8 @@ JSON
 {"id":"${task_id}","description":"test"}
 JSON
 
-  export LLM_WORKER_CMD_JSON='["'$TEST_TMP'/fake_worker_success.sh"]'
+  LLM_WORKER_CMD_JSON=$(jq -nc --arg p "$TEST_TMP/fake_worker_success.sh" '[ $p ]')
+  export LLM_WORKER_CMD_JSON
   export TASKS_SKIP_LOCKDOWN=1
   run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]
@@ -131,7 +136,8 @@ JSON
   trap 'chmod -R +w .tasks/claimed 2>/dev/null || true' EXIT
   chmod -w .tasks/claimed
 
-  export LLM_WORKER_CMD_JSON='["'$TEST_TMP'/fake_worker_success.sh"]'
+  LLM_WORKER_CMD_JSON=$(jq -nc --arg p "$TEST_TMP/fake_worker_success.sh" '[ $p ]')
+  export LLM_WORKER_CMD_JSON
   export TASKS_SKIP_LOCKDOWN=1
   run bash ./4_minion.sh "$worker_id" "$task_id"
   [ "$status" -ne 0 ]

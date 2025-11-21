@@ -72,3 +72,26 @@ teardown() {
   perms=$(stat -c '%a' "$TASKS_DIR" 2>/dev/null || stat -f '%Lp' "$TASKS_DIR")
   [ "$perms" != "700" ]
 }
+
+@test "LLM_WORKER_CMD_JSON parses valid array" {
+  export LLM_WORKER_CMD_JSON='["/bin/echo","-n"]'
+  run bash -c 'source ./setup.sh && printf "%s\n" "${LLM_WORKER_CMD[@]}"'
+  [ "$status" -eq 0 ]
+  mapfile -t vals < <(printf '%s' "$output")
+  [ "${#vals[@]}" -ge 2 ]
+  [ "${vals[0]}" = "/bin/echo" ]
+}
+
+@test "LLM_WORKER_CMD_JSON rejects malformed JSON" {
+  export LLM_WORKER_CMD_JSON='not json'
+  run bash ./setup.sh
+  [ "$status" -ne 0 ]
+  [[ "$output" =~ (JSON|json|parse|Invalid) ]]
+}
+
+@test "LLM_WORKER_CMD_JSON rejects empty array" {
+  export LLM_WORKER_CMD_JSON='[]'
+  run bash ./setup.sh
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"empty"* ]] || [[ "$output" == *"JSON array"* ]] || [[ "$output" == *"must not be empty"* ]]
+}
