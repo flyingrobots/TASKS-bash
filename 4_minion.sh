@@ -1,6 +1,24 @@
-#!/bin/bash
+#!/usr/bin/env bash
 worker_id="$1"
 task_id="$2"
+
+# Validate inputs immediately to prevent path traversal and destructive operations
+if [ -z "$worker_id" ] || [ -z "$task_id" ]; then
+  echo "Error: worker_id and task_id are required" >&2
+  exit 1
+fi
+
+# Sanitize inputs: reject path traversal, shell metacharacters, and unsafe patterns
+# Allow only [A-Za-z0-9._-]
+if [[ "$worker_id" =~ [^A-Za-z0-9._-] ]] || [[ "$worker_id" == "." ]] || [[ "$worker_id" == ".." ]]; then
+  echo "Error: worker_id contains invalid characters or is unsafe: $worker_id" >&2
+  exit 1
+fi
+
+if [[ "$task_id" =~ [^A-Za-z0-9._-] ]] || [[ "$task_id" == "." ]] || [[ "$task_id" == ".." ]]; then
+  echo "Error: task_id contains invalid characters or is unsafe: $task_id" >&2
+  exit 1
+fi
 
 source setup.sh
 source adapters/log.sh
@@ -17,18 +35,34 @@ fi
 description=$(jq -r '.description // ""' "$TASK_FILE")
 prompt="Execute task $task_id: $description"
 
-port_call_worker "$prompt" >"$LOG_FILE" 2>&1
+call_llm_worker "$prompt" >"$LOG_FILE" 2>&1
 status=$?
 
+# Ensure destination directories exist before moving
+mkdir -p "$TASKS_DIR/closed" "$TASKS_DIR/dead"
+
 if [ $status -eq 0 ]; then
-  mv "$TASK_FILE" "$TASKS_DIR/closed/$task_id.json"
-  port_log_info "✅ $task_id closed"
+  if mv "$TASK_FILE" "$TASKS_DIR/closed/$task_id.json"; then
+    port_log_info "✅ $task_id closed"
+  else
+    port_log_error "Failed to move $task_id to closed: $?"
+    exit 1
+  fi
 else
-  mv "$TASK_FILE" "$TASKS_DIR/dead/$task_id.json"
-  port_log_error "💀 $task_id failed"
+  if mv "$TASK_FILE" "$TASKS_DIR/dead/$task_id.json"; then
+    port_log_error "💀 $task_id failed"
+  else
+    port_log_error "Failed to move $task_id to dead: $?"
+    exit 1
+  fi
 fi
 
 # Clean up claimed worker directory to avoid stale slots
+# Double-check worker_id is valid and directory exists before destructive operation
+if [ -z "$worker_id" ] || [ ! -d "$TASKS_DIR/claimed/$worker_id" ]; then
+  port_log_error "Invalid cleanup state for worker_id=$worker_id"
+  exit 1
+fi
 rm -rf "$TASKS_DIR/claimed/$worker_id"
 rm -f "$TASKS_DIR/pids/$worker_id.pid"
 

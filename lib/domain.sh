@@ -4,26 +4,32 @@
 
 # Move any blocked task whose dependencies are all closed into open.
 domain_unblock_ready_tasks() {
-  for task_file in $(port_list_blocked_tasks); do
+  # Use process substitution to safely iterate over task files
+  while IFS= read -r task_file; do
     [ -e "$task_file" ] || continue
+
+    # Use local variables to avoid polluting global scope
+    local task_id deps all_met
     task_id=$(basename "$task_file" .json)
     deps=$(port_read_dependencies "$task_file")
 
     all_met=true
     if [ -n "$deps" ]; then
-      for dep in $deps; do
+      # Read dependencies line-by-line to handle whitespace safely
+      local dep
+      while IFS= read -r dep; do
         if ! port_is_closed "$dep"; then
           all_met=false
           break
         fi
-      done
+      done <<< "$deps"
     fi
 
     if [ "$all_met" = true ]; then
       port_unblock_task "$task_file"
       port_log_info "Unblocked $task_id"
     fi
-  done
+  done < <(port_list_blocked_tasks)
 }
 
 # Spawn a worker if capacity and open tasks exist.
@@ -40,6 +46,8 @@ domain_spawn_next_task() {
     return 1
   fi
 
+  # Use local variables to avoid global scope pollution
+  local task_path task_id worker_id
   task_path=$(port_pick_open_task)
   [ -n "$task_path" ] || return 1
   task_id=$(basename "$task_path" .json)

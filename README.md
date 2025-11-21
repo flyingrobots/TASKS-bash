@@ -2,8 +2,7 @@
 
 ![task-bash-social](https://github.com/user-attachments/assets/c06b77db-9e1c-4cea-adad-785097ca58b1)
 
-
-***T**asks **A**re **S**equenced **K**ey **S**teps** is a file-system-based autonomous agent runner. It turns a goal into a dependency-ordered DAG, manages tasks via the filesystem, and drives parallel LLM workers to get the work done.
+**T**asks **A**re **S**equenced **K**ey **S**teps is a file-system-based autonomous agent runner. It turns a goal into a dependency-ordered DAG, manages tasks via the filesystem, and drives parallel LLM workers to get the work done.
 
 > [!WARNING]
 > This gives an LLM write access to your workspace. Run inside git (or a Docker container that copies the repo in) so you can revert if things go sideways.
@@ -15,6 +14,7 @@
 
 ## Architecture (Filesystem = Database)
 
+- **setup.sh (Bootstrapper)**: configures env vars and creates the `.tasks/` directory scaffold.
 - **1_architect.sh (Architect)**: scans the project and prompts an LLM to emit a JSON DAG.
 - **2_seeder.sh (Seeder)**: converts the DAG into per-task JSON files, placing them in `open/` or `blocked/` based on dependencies.
 - **3_overlord.sh (Overlord)**: main loop that unblocks tasks when deps close, throttles workers, and spawns minions.
@@ -28,13 +28,13 @@
 - `jq` for JSON parsing
   - macOS: `brew install jq`
   - Linux: `sudo apt-get install jq`
-- LLM CLI tool: defaults to `claude`; any executable that accepts the prompt as the final argument and prints to stdout will work.
+- LLM CLI tool: Default is Anthropic's **Claude Code CLI** (install & configure per the official docs: https://docs.anthropic.com/en/docs/claude-code/overview). Any executable that accepts the prompt as the final argument and prints to stdout will also work.
 
 ## Quick Start
 
 ```bash
-# 0) Make scripts executable
-chmod +x *.sh
+# 0) Make the task scripts executable (avoid chmod-ing everything)
+chmod +x setup.sh 1_architect.sh 2_seeder.sh 3_overlord.sh 4_minion.sh 5_status.sh 6_revive.sh
 
 # 1) Initialize directories and env vars
 ./setup.sh
@@ -74,6 +74,14 @@ All config lives in `setup.sh`. You can override via env vars before running:
 - `MAX_WORKERS` (default `4`): cap concurrent workers.
 - `LLM_PLANNER_CMD` (default `claude -p`): planner that outputs JSON.
 - `LLM_WORKER_CMD` (default `claude --dangerously-skip-permissions`): worker used for edits.
+
+> [!CAUTION]
+> **About `--dangerously-skip-permissions`**: This flag bypasses Claude Code's permission prompts for file modifications, allowing autonomous agents to edit files without user confirmation. **Risks**: Unvetted code changes, potential data corruption, or unintended modifications. **Use only in**:
+> - Trusted development environments with version control (git)
+> - Non-production workspaces where changes can be safely reverted
+> - Contexts where you've reviewed the generated plan (`dag.json`) beforehand
+>
+> **Recommended mitigations**: Always run inside a git repo, review logs in `.tasks/logs/`, and inspect diffs before committing. For production use, remove this flag and handle confirmations manually, or use a sandboxed container.
 
 Example using a Python OpenAI wrapper:
 

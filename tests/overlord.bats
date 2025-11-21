@@ -9,16 +9,22 @@ setup() {
   cp "$PROJECT_ROOT/lib/domain.sh" "$TEST_TMP/lib/"
 
   mkdir -p "$TEST_TMP/.tasks/open" "$TEST_TMP/.tasks/claimed" "$TEST_TMP/.tasks/closed" "$TEST_TMP/.tasks/dead" "$TEST_TMP/.tasks/logs" "$TEST_TMP/.tasks/pids"
-  cat >"$TEST_TMP/.tasks/open/t1.json" <<'JSON'
-{"id":"t1","description":"first"}
+
+  # Generate unique task IDs to avoid collisions
+  export TASK1_ID="t1_$$_$RANDOM"
+  export TASK2_ID="t2_$$_$RANDOM"
+
+  cat >"$TEST_TMP/.tasks/open/${TASK1_ID}.json" <<JSON
+{"id":"${TASK1_ID}","description":"first"}
 JSON
-  cat >"$TEST_TMP/.tasks/open/t2.json" <<'JSON'
-{"id":"t2","description":"second"}
+  cat >"$TEST_TMP/.tasks/open/${TASK2_ID}.json" <<JSON
+{"id":"${TASK2_ID}","description":"second"}
 JSON
 
-  # Stub worker: exits success immediately
+  # Enhanced stub worker: logs invocations and exits successfully
   cat > "$TEST_TMP/fake_worker.sh" <<'SH'
 #!/usr/bin/env bash
+echo "Worker invoked with args: $*" >> "$TEST_TMP/worker.log"
 exit 0
 SH
   chmod +x "$TEST_TMP/fake_worker.sh"
@@ -38,8 +44,15 @@ teardown() { rm -rf "$TEST_TMP"; }
   run bash ./3_overlord.sh
   [ "$status" -eq 0 ]
 
-  [ -f .tasks/closed/t1.json ]
-  [ -f .tasks/closed/t2.json ]
-  # Claimed dirs should be cleaned up by minions
-  [ ! -d .tasks/claimed ] || [ "$(find .tasks/claimed -mindepth 1 -print -quit)" = "" ]
+  # Verify tasks were processed using dynamic IDs
+  [ -f ".tasks/closed/${TASK1_ID}.json" ]
+  [ -f ".tasks/closed/${TASK2_ID}.json" ]
+
+  # Claimed directory should exist and be empty
+  [ -d .tasks/claimed ]
+  empty_check=$(find .tasks/claimed -mindepth 1 -print -quit)
+  [ -z "$empty_check" ]
+
+  # Verify worker was invoked (enhanced stub logs invocations)
+  [ -f "$TEST_TMP/worker.log" ]
 }

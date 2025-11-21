@@ -4,5 +4,5 @@
 # Logs
 *.log
 
-# OS junk
+# macOS system files
 .DS_Store

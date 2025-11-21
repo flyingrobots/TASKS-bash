@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 
-port_call_worker() {
+# Renamed from port_call_worker for clarity
+call_llm_worker() {
   local prompt="$1"
-  echo "$prompt" | $LLM_WORKER_CMD
+
+  # Use eval to safely handle multi-word commands with flags
+  # LLM_WORKER_CMD should be set in setup.sh (e.g., "claude --dangerously-skip-permissions")
+  echo "$prompt" | eval "$LLM_WORKER_CMD"
 }

@@ -4,6 +4,17 @@
 tmp
 .tasks
 **/__pycache__
+.py[cod]
+*.so
 node_modules
 dist
 build
+.env
+.env.local
+.env.*.local
+.vscode/
+.idea/
+*.swp
+*.swo
+.dockerignore
+Dockerfile
