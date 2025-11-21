@@ -9,16 +9,13 @@ if [ -z "$GOAL" ]; then
     exit 1
 fi
 
-echo "👀 Scanning project structure..."
-PROJECT_STRUCTURE=$(find . -maxdepth 4 -not -path '*/.*' -not -path './.tasks*' | sed 's/^/  /')
-
 PROMPT_FILE="$TASKS_DIR/prompts/architect.txt"
 cat > "$PROMPT_FILE" <<EOF
 You are the T.A.S.K.S. Architect.
 
 CONTEXT:
-The user is working in a codebase with this structure:
-$PROJECT_STRUCTURE
+- Project file tree intentionally omitted to keep the prompt light.
+- If you need directory context, explicitly ask for a targeted, shallow listing rather than the whole repo.
 
 GOAL:
 $GOAL
@@ -29,6 +26,10 @@ RULES:
 3. Output ONLY valid JSON. Do not include markdown fences or chatter.
 4. Reference existing files from the context in your task scopes.
 EOF
+then
+    port_log_error "Failed to write prompt file"
+    exit 1
+fi
 
 port_log_info "🧠 Architect is thinking (using $LLM_PLANNER_CMD)..."
 

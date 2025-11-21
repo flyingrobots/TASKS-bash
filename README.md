@@ -7,6 +7,7 @@
 
 ## Architecture (Filesystem = Database)
 
+- **setup.sh (Bootstrapper)**: configures env vars and creates the `.tasks/` directory scaffold.
 - **1_architect.sh (Architect)**: scans the project and prompts an LLM to emit a JSON DAG.
 - **2_seeder.sh (Seeder)**: converts the DAG into per-task JSON files, placing them in `open/` or `blocked/` based on dependencies.
 - **3_overlord.sh (Overlord)**: main loop that unblocks tasks when deps close, throttles workers, and spawns minions.
@@ -20,7 +21,7 @@
 - `jq` for JSON parsing
   - macOS: `brew install jq`
   - Linux: `sudo apt-get install jq`
-- LLM CLI tool: defaults to `claude`; any executable that accepts the prompt as the final argument and prints to stdout will work.
+- LLM CLI tool: Default is Anthropic's **Claude Code CLI** (install & configure per the official docs: https://docs.anthropic.com/en/docs/claude-code/overview). Any executable that accepts the prompt as the final argument and prints to stdout will also work.
 
 ## Quick Start
 
