@@ -1,14 +1,14 @@
 .git
 .gitignore
-*.log
-tmp
+**/*.log
+**/tmp
 .tasks
 **/__pycache__
 .py[cod]
 *.so
-node_modules
-dist
-build
+node_modules/
+dist/
+build/
 .env
 .env.local
 .env.*.local
@@ -17,4 +17,3 @@ build
 *.swp
 *.swo
 .dockerignore
-Dockerfile
