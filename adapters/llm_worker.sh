@@ -10,7 +10,7 @@ call_llm_worker() {
     return 127
   fi
   if [ ${#TASKS_LLM_WORKER_CMD[@]} -eq 0 ]; then
-    echo "Error: TASKS_LLM_WORKER_CMD is not set" >&2
+    echo "Error: TASKS_LLM_WORKER_CMD is empty" >&2
     return 127
   fi
 

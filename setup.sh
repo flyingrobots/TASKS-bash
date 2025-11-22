@@ -89,7 +89,20 @@ export TASKS_TIMEOUT_SECONDS=${TASKS_TIMEOUT_SECONDS:-300}
 # 1. The Planner (Architect)
 # Requirements: Must output valid JSON to stdout.
 # Input format: TASKS_LLM_PLANNER_CMD <prompt_file> <user_input_string>
-export TASKS_LLM_PLANNER_CMD="${TASKS_LLM_PLANNER_CMD:-claude -p}"
+# Normalize planner command to an array
+if declare -p TASKS_LLM_PLANNER_CMD 2>/dev/null | grep -q 'declare \-a'; then
+  : # already array
+else
+  if [ -n "${TASKS_LLM_PLANNER_CMD:-}" ]; then
+    read -ra TASKS_LLM_PLANNER_CMD <<<"$TASKS_LLM_PLANNER_CMD"
+  else
+    TASKS_LLM_PLANNER_CMD=(claude -p)
+  fi
+fi
+export TASKS_LLM_PLANNER_CMD
+TASKS_LLM_PLANNER_CMD_STR=$(printf '%q ' "${TASKS_LLM_PLANNER_CMD[@]}")
+TASKS_LLM_PLANNER_CMD_STR=${TASKS_LLM_PLANNER_CMD_STR%% }
+export TASKS_LLM_PLANNER_CMD_STR
 
 # 2. The Worker (Minion)
 # Requirements: Must be capable of File I/O (editing files in place).

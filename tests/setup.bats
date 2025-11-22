@@ -39,7 +39,7 @@ teardown() {
 }
 
 @test "setup.sh exports expected environment variables (defaults)" {
-  run bash -c 'source ./setup.sh && printf "%s\n%s\n%s\n%s\n" "$TASKS_DIR" "$TASKS_MAX_WORKERS" "$TASKS_LLM_PLANNER_CMD" "$TASKS_LLM_WORKER_CMD_STR"'
+  run bash -c 'source ./setup.sh && printf "%s\n%s\n%s\n%s\n" "$TASKS_DIR" "$TASKS_MAX_WORKERS" "$TASKS_LLM_PLANNER_CMD_STR" "$TASKS_LLM_WORKER_CMD_STR"'
   [ "$status" -eq 0 ]
 
   mapfile -t vars < <(printf '%s' "$output")

@@ -28,6 +28,17 @@ set -euo pipefail
 #   Errors are written to stderr.
 # ============================================================================
 
+# Helper to run commands with nullglob enabled and restored
+_with_nullglob_array() {
+  local __dest="$1"; shift
+  local old_state
+  old_state=$(shopt -p nullglob || true)
+  shopt -s nullglob
+  local tmp=("$@")
+  eval "$old_state"
+  eval "$__dest=(\"\${tmp[@]}\")"
+}
+
 # Validate required environment and dependencies
 _validate_tasks_dir() {
   if [ -z "$TASKS_DIR" ]; then
@@ -66,11 +77,8 @@ port_list_blocked_tasks() {
     return 1
   fi
 
-  # Use nullglob to handle no-match case safely
-  local old_nullglob=$(shopt -p nullglob || true)
-  shopt -s nullglob
-  local files=("$TASKS_DIR/blocked"/*.json)
-  eval "$old_nullglob"
+  local files=()
+  _with_nullglob_array files "$TASKS_DIR/blocked"/*.json
 
   # Print each file path
   for file in "${files[@]}"; do
@@ -124,8 +132,11 @@ port_is_closed() {
     return 1
   fi
 
-  # Test file existence with quoted path
-  [ -f "$TASKS_DIR/closed/$task_id.json" ]
+  if [ -f "$TASKS_DIR/closed/$task_id.json" ]; then
+    return 0
+  else
+    return 1
+  fi
 }
 
 port_unblock_task() {
@@ -166,10 +177,8 @@ port_count_claimed_workers() {
   fi
 
   local alive=0
-  local old_nullglob=$(shopt -p nullglob || true)
-  shopt -s nullglob
-  local pidfiles=("$TASKS_DIR/pids"/*.pid)
-  eval "$old_nullglob"
+  local pidfiles=()
+  _with_nullglob_array pidfiles "$TASKS_DIR/pids"/*.pid
 
   # Process each pidfile with robust error handling
   local pidfile pid
@@ -201,11 +210,8 @@ port_count_claimed_workers() {
 }
 
 port_count_open_tasks() {
-  # Use nullglob to handle no-match case safely
-  local old_nullglob=$(shopt -p nullglob || true)
-  shopt -s nullglob
-  local files=("$TASKS_DIR/open"/*.json)
-  eval "$old_nullglob"
+  local files=()
+  _with_nullglob_array files "$TASKS_DIR/open"/*.json
 
   # Return count
   echo "${#files[@]}"
@@ -213,11 +219,8 @@ port_count_open_tasks() {
 }
 
 port_pick_open_task() {
-  # Use nullglob to safely handle no matches
-  local old_nullglob=$(shopt -p nullglob || true)
-  shopt -s nullglob
-  local files=("$TASKS_DIR/open"/*.json)
-  eval "$old_nullglob"
+  local files=()
+  _with_nullglob_array files "$TASKS_DIR/open"/*.json
 
   # Return first file if available, otherwise return non-zero
   if [ "${#files[@]}" -gt 0 ]; then
@@ -229,12 +232,6 @@ port_pick_open_task() {
 }
 
 port_new_worker_id() {
-  # Verify get_worker_id function exists
-  if ! declare -f get_worker_id &>/dev/null; then
-    echo "Error: get_worker_id function not found" >&2
-    return 1
-  fi
-
   # Call get_worker_id and capture output and exit status
   local worker_id
   if ! worker_id=$(get_worker_id); then
@@ -283,6 +280,14 @@ port_claim_task() {
     return 1
   fi
 
+  # Validate identifiers to prevent traversal
+  case "$worker_id" in
+    *[!A-Za-z0-9._-]*|"" ) echo "Error: invalid worker_id: $worker_id" >&2; return 1 ;;
+  esac
+  case "$task_id" in
+    *[!A-Za-z0-9._-]*|"" ) echo "Error: invalid task_id: $task_id" >&2; return 1 ;;
+  esac
+
   # Create claimed directory and check for errors
   if ! mkdir -p "$TASKS_DIR/claimed/$worker_id"; then
     echo "Error: Failed to create claimed directory for worker $worker_id" >&2
@@ -300,8 +305,10 @@ port_claim_task() {
 
   if ! mv "$temp_dest" "$dest"; then
     echo "Error: Failed to rename task to final location: $temp_dest -> $dest" >&2
-    # Try to recover by moving back
-    mv "$temp_dest" "$task_path" 2>/dev/null || true
+    if ! mv "$temp_dest" "$task_path" 2>/dev/null; then
+      echo "Error: Rollback failed; temp file may remain at $temp_dest" >&2
+      rm -f "$temp_dest" 2>/dev/null || true
+    fi
     return 1
   fi
 

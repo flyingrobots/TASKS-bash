@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
 setup() {
-  PROJECT_ROOT="$(pwd)"
+  PROJECT_ROOT="$(cd -- "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)"
   TEST_TMP="$(mktemp -d)"
   cp "$PROJECT_ROOT/3_overlord.sh" "$PROJECT_ROOT/4_minion.sh" "$PROJECT_ROOT/setup.sh" "$TEST_TMP/"
   mkdir -p "$TEST_TMP/adapters"
