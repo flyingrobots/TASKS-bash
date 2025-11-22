@@ -8,22 +8,31 @@ setup() {
   export TASKS_MAX_WORKERS=1
 
   # Minimal adapters for domain use
-  port_list_blocked_tasks() { ls "$TASKS_DIR/blocked"/*.json 2>/dev/null || true; }
-  port_read_dependencies() { jq -r '.dependencies[]?' "$1"; }
+  port_list_blocked_tasks() { find "$TASKS_DIR/blocked" -maxdepth 1 -type f -name '*.json' 2>/dev/null; }
+  port_read_dependencies() {
+    local f="$1"
+    [ -r "$f" ] || { echo "dep file unreadable: $f" >&2; return 1; }
+    jq -r '.dependencies[]?' "$f"
+  }
   port_is_closed() { [ -f "$TASKS_DIR/closed/$1.json" ]; }
   port_unblock_task() { mv "$1" "$TASKS_DIR/open/"; }
-  port_count_claimed_workers() { ls -d "$TASKS_DIR/claimed"/*/ 2>/dev/null | wc -l; }
-  port_count_open_tasks() { ls "$TASKS_DIR/open"/*.json 2>/dev/null | wc -l; }
-  port_pick_open_task() { ls "$TASKS_DIR/open"/*.json 2>/dev/null | head -n1; }
+  port_count_claimed_workers() { find "$TASKS_DIR/claimed" -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l; }
+  port_count_open_tasks() { find "$TASKS_DIR/open" -maxdepth 1 -type f -name '*.json' 2>/dev/null | wc -l; }
+  port_pick_open_task() { find "$TASKS_DIR/open" -maxdepth 1 -type f -name '*.json' 2>/dev/null | head -n1; }
   port_new_worker_id() { echo "w_test_${BATS_TEST_NUMBER}_$RANDOM"; }
   port_claim_task() {
     local worker_id="$1" task_path="$2" task_id="$3"
     mkdir -p "$TASKS_DIR/claimed/$worker_id"
     mv "$task_path" "$TASKS_DIR/claimed/$worker_id/$task_id.json"
   }
-  port_launch_minion() { echo "$1 $2" >>"$TEST_TMP/spawned.txt"; }
+  port_launch_minion() {
+    local wid="$1" tid="$2"
+    [ -n "$wid" ] && [ -n "$tid" ] || { echo "missing worker or task id" >&2; return 1; }
+    : > "$TEST_TMP/spawned.txt" 2>/dev/null || true
+    echo "$wid $tid" >>"$TEST_TMP/spawned.txt" 2>/dev/null || { echo "cannot write spawn log" >&2; return 1; }
+  }
   port_log_info() { :; }
-  port_log_error() { :; }
+  port_log_error() { echo "$*" >&2; }
 
   # Export all adapter functions for subprocess use
   export -f port_list_blocked_tasks
@@ -68,7 +77,7 @@ JSON
 
 @test "unblock_ready_tasks leaves task blocked when deps missing" {
   # Generate unique task IDs to avoid collisions
-  local RAND="$(date +%s)${BATS_TEST_NUMBER}_$RANDOM"
+  local RAND="${BATS_TEST_NUMBER}_$RANDOM"
   local TID="t2_${RAND}"
   local MISSING="missing_${RAND}"
 

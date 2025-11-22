@@ -14,6 +14,7 @@ setup() {
 }
 
 teardown() {
+  chmod +w "$TEST_TMP/.tasks/manifest" 2>/dev/null || true
   rm -rf "$TEST_TMP"
 }
 
@@ -101,7 +102,4 @@ SCRIPT
   run bash ./1_architect.sh "Test goal"
   [ "$status" -ne 0 ]
   [[ "$output" == *"write"* ]] || [[ "$output" == *"permission"* ]] || [[ "$output" == *"denied"* ]]
-
-  # Restore permissions for teardown
-  chmod +w .tasks/manifest
 }

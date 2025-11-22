@@ -40,7 +40,8 @@ teardown() { rm -rf "$TEST_TMP"; }
   export TASKS_OVERLORD_TICKS=10
   export TASKS_SLEEP_SECONDS=0.1
 
-  chmod +x ./3_overlord.sh ./4_minion.sh adapters/*.sh lib/*.sh
+  find adapters lib -type f -name '*.sh' -print0 2>/dev/null | xargs -0 chmod +x
+  chmod +x ./3_overlord.sh ./4_minion.sh
   run bash ./3_overlord.sh
   [ "$status" -eq 0 ]
 
