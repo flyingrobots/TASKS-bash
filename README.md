@@ -4,6 +4,9 @@
 
 **T**asks **A**re **S**equenced **K**ey **S**teps - A filesystem-based autonomous agent runner that turns goals into dependency-ordered DAGs and executes them with parallel LLM workers.
 
+> [!WARNING]  
+> This tool gives an LLM full write access to your repository **including `.git/`**. It can rewrite history, modify refs, delete branches, and corrupt your repo. Use only in a disposable clone, isolated worktree, or container with backups. Before running: (1) make a backup, (2) use a throwaway/shallow clone or temp branch, (3) never run on a production repository.
+
 ## What It Does
 
 Give T.A.S.K.S. a goal and watch it work:
@@ -23,11 +26,14 @@ Give T.A.S.K.S. a goal and watch it work:
 
 ## Quick Start
 
+> [!CAUTION] Dangerous default  
+> The default worker command includes `--dangerously-skip-permissions` (Claude Code) which auto-approves edits. For production, override with a safer command (e.g., set `TASKS_LLM_WORKER_CMD_JSON='["claude"]'` or your own worker) and use a throwaway clone/worktree.
+
 **One command (full pipeline):**
 
 ```bash
 chmod +x tasks.sh  # first time only
-./tasks.sh "Add request logging and rate limiting to our API"
+TASKS_LLM_WORKER_CMD_JSON='["claude"]' ./tasks.sh "Add request logging and rate limiting to our API"
 ```
 
 This runs setup → architect → seeder → overlord (rolling frontier) with a default tick limit so it finishes on its own. Logs live in `.tasks/logs/`.
@@ -393,11 +399,8 @@ Fix the issue (install redis), then revive:
 ./tasks.sh "<goal>"  # Or run ./3_overlord.sh to resume scheduling only
 ```
 
-**Plans lack context:** Increase scan depth in `1_architect.sh`:
-
-```bash
-find . -maxdepth 6 ...  # Bump to 7 or 8
-```
+**Plans lack context:** If you increase scan depth in `1_architect.sh`, also **exclude sensitive and heavy paths** (e.g., `.env`, `secrets/`, `.ssh/`, `node_modules/`, `vendor/`, `dist/`).  
+⚠️ The planner ingests whatever you scan; secrets can leak into `dag.json` or logs. Prefer explicit `--exclude` patterns or a safe whitelist when bumping `-maxdepth` so sensitive files are never read.
 
 ---
 
