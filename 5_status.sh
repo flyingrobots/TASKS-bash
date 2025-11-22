@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Verify setup.sh exists and source it with error checking
 if [ ! -r setup.sh ]; then
     echo "Error: setup.sh not found or not readable" >&2
@@ -18,11 +18,11 @@ while true; do
     echo "   Press [CTRL+C] to exit dashboard"
     echo ""
     
-    OPEN=$(ls .tasks/open/*.json 2>/dev/null | wc -l)
-    BLOCKED=$(ls .tasks/blocked/*.json 2>/dev/null | wc -l)
-    CLOSED=$(ls .tasks/closed/*.json 2>/dev/null | wc -l)
-    DEAD=$(ls .tasks/dead/*.json 2>/dev/null | wc -l)
-    CLAIMED=$(ls -d .tasks/claimed/*/ 2>/dev/null | wc -l)
+    OPEN=$(find .tasks/open -maxdepth 1 -type f -name '*.json' -print0 2>/dev/null | tr -cd '\0' | wc -c)
+    BLOCKED=$(find .tasks/blocked -maxdepth 1 -type f -name '*.json' -print0 2>/dev/null | tr -cd '\0' | wc -c)
+    CLOSED=$(find .tasks/closed -maxdepth 1 -type f -name '*.json' -print0 2>/dev/null | tr -cd '\0' | wc -c)
+    DEAD=$(find .tasks/dead -maxdepth 1 -type f -name '*.json' -print0 2>/dev/null | tr -cd '\0' | wc -c)
+    CLAIMED=$(find .tasks/claimed -maxdepth 1 -mindepth 1 -type d -print0 2>/dev/null | tr -cd '\0' | wc -c)
 
     echo "🟢 OPEN (Ready):     $OPEN"
     echo "🟡 BLOCKED (Wait):   $BLOCKED"

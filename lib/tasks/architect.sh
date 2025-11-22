@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 tasks_architect() {
-  local goal="$1"
+  local goal="${1-}"
   if [ -z "$goal" ]; then
     echo "Usage: tasks_architect '<goal>'" >&2
     return 1
@@ -9,6 +9,11 @@ tasks_architect() {
 
   local prompt_template="${TASKS_ARCHITECT_TEMPLATE:-$TASKS_DIR/prompts/architect_template.txt}"
   local prompt_file="$TASKS_DIR/prompts/architect.txt"
+
+  if ! mkdir -p "$TASKS_DIR/prompts"; then
+    port_log_error "Failed to ensure prompts directory at $TASKS_DIR/prompts"
+    return 1
+  fi
 
   if [ -f "$prompt_template" ]; then
     template_content=$(cat "$prompt_template")
@@ -43,7 +48,10 @@ tasks_architect() {
     return 1
   fi
 
-  mv "$temp_manifest" "$TASKS_DIR/manifest/dag.json"
-  port_log_info "✅ Plan generated at $TASKS_DIR/manifest/dag.json"
+  if mv "$temp_manifest" "$TASKS_DIR/manifest/dag.json"; then
+    port_log_info "✅ Plan generated at $TASKS_DIR/manifest/dag.json"
+  else
+    port_log_error "❌ Failed to place manifest at $TASKS_DIR/manifest/dag.json"
+    return 1
+  fi
 }
-
