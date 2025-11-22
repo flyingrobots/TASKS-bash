@@ -56,7 +56,10 @@ fi
 # Sanitize description to avoid prompt/shell injection
 description_raw=$(jq -r '.description // ""' "$TASK_FILE")
 description_clean=$(printf '%s' "$description_raw" | tr -cd '[:print:]' | head -c 2000)
-prompt="Execute task $task_id: $description_clean"
+
+# Compose worker prompt with safety and concurrency guidance (rolling frontier)
+instructions="You are one of multiple parallel workers on the same git branch. You MUST NOT run git commands. Other workers may edit files concurrently; transient test/build/edit failures are expected—retry locally without git." \
+prompt=$(printf '%s\nTask %s: %s' "$instructions" "$task_id" "$description_clean")
 
 # Verify log directory is writable before execution
 if [ ! -w "$TASKS_DIR/logs" ]; then

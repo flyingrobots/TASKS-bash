@@ -325,9 +325,13 @@ The overlord loop (`3_overlord.sh`) orchestrates everything as a **rolling front
 2. Claims and executes `tests`
 3. Pattern continues: `integration` → `docs`
 
-Each minion:
+Each minion receives a prompt that:
 
-- Receives the task description via stdin
+- Explicitly **forbids running git commands**
+- Warns it is working alongside other workers on the same branch (expect transient test/build/edit failures from concurrent edits)
+- Includes the task description
+
+Minion behavior:
 - Executes via `TASKS_LLM_WORKER_CMD`
 - Writes everything to `.tasks/logs/<task_id>.log`
 - On success: moves task to `closed/`
