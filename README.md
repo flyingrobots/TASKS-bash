@@ -52,6 +52,100 @@ chmod +x setup.sh 1_architect.sh 2_seeder.sh 3_overlord.sh 4_minion.sh 5_status.
 ./3_overlord.sh
 ```
 
+## How This Works (End to End)
+
+At a high level, a goal is turned into a dependency graph (DAG), split into per-task JSON files, and executed by worker processes under a scheduler loop. The entire system stores state on disk so it is inspectable and resumable.
+
+```mermaid
+flowchart TD
+  Goal[User goal] --> Planner[1_architect.sh\n(Planner LLM)]
+  Planner -->|writes| Manifest[.tasks/manifest/dag.json]
+  Manifest --> Seeder[2_seeder.sh\n(seeds tasks)]
+  Seeder --> Open[.tasks/open/]
+  Open --> Overlord[3_overlord.sh\n(scheduler loop)]
+  Overlord -->|claim| Minion[4_minion.sh\n(worker per task)]
+  Minion --> Logs[.tasks/logs/<task>.log]
+  Minion --> Closed[.tasks/closed/]
+  Minion --> Dead[.tasks/dead/]
+  Dead --> Revive[6_revive.sh]\n
+  Revive --> Open
+  Overlord --> Status[5_status.sh]\n
+```
+
+### Planner (architect) details
+- `1_architect.sh` builds a **planner prompt** from repo context, the user goal, and guardrails.
+- It executes `LLM_PLANNER_CMD` (default `claude -p`) and expects **valid JSON** on stdout shaped like:
+  ```json
+  {
+    "tasks": [
+      {"id": "plan", "description": "write plan", "deps": []},
+      {"id": "code", "description": "implement", "deps": ["plan"]}
+    ]
+  }
+  ```
+- The file is saved to `.tasks/manifest/dag.json` and is the single source of truth for the DAG.
+
+### DAG seeding (seeder)
+`2_seeder.sh` reads `dag.json` and writes one JSON file per task:
+- If a task has **no deps**, its file goes to `.tasks/open/<id>.json`.
+- If it has unmet deps, it goes to `.tasks/blocked/<id>.json` with the dep list preserved.
+
+Example DAG to files:
+
+```mermaid
+graph LR
+  plan((plan)) --> code((code))
+  plan((plan)) --> docs((docs))
+```
+
+Results on disk:
+- `.tasks/open/plan.json`
+- `.tasks/blocked/code.json` (deps `["plan"]`)
+- `.tasks/blocked/docs.json` (deps `["plan"]`)
+
+### Script roles (expanded)
+- **setup.sh** – config & directory scaffold; parses `LLM_WORKER_CMD_JSON`; permission lockdown.
+- **1_architect.sh** – planner prompt + LLM -> `dag.json`.
+- **2_seeder.sh** – splits DAG into per-task files, routes to `open/` vs `blocked/`.
+- **3_overlord.sh** – scheduler loop: unblocks tasks, enforces `MAX_WORKERS`, claims work, spawns minions, waits.
+- **4_minion.sh** – executes one task via `LLM_WORKER_CMD` (array), logs output, moves task to `closed/` or `dead/`.
+- **5_status.sh** – renders the current tree for humans.
+- **6_revive.sh** – moves items from `dead/` back to `open/` for retries.
+
+### Overlord loop (precise)
+Each tick of `3_overlord.sh` does:
+1) **Unblock**: move any task whose deps are all in `closed/` from `blocked/` -> `open/`.
+2) **Capacity check**: count running workers vs `MAX_WORKERS`.
+3) **Claim**: atomically move up to the remaining capacity from `open/` -> `claimed/w_<id>/task.json`.
+4) **Spawn**: fork `4_minion.sh <worker_id> <task_id>` for each claim; record pid under `.tasks/pids/`.
+5) **Reap**: wait for any pid to finish, then loop.
+
+```mermaid
+flowchart TD
+  T0((tick)) --> U[Unblock deps satisfied]
+  U --> C[Check capacity]
+  C -->|room| Q[Claim tasks -> claimed/w_<id>/]
+  Q --> S[Spawn minions]
+  S --> R[Wait/Reap pids]
+  R --> T0
+```
+
+### Task lifecycle (exact states)
+
+```mermaid
+stateDiagram-v2
+  [*] --> open
+  open --> claimed: claimed by overlord
+  claimed --> closed: minion exits 0 (mv to closed)
+  claimed --> dead: minion exits non-zero / timeout / invalid JSON / log dir unwritable
+  dead --> open: revive.sh
+```
+
+Key guarantees:
+- All state changes are file moves inside `TASKS_DIR` (atomic on same filesystem).
+- Logs are always written to `.tasks/logs/<task_id>.log` before status transition.
+- If cleanup fails (e.g., read-only dirs), the minion logs and exits non-zero to surface the issue.
+
 ## State Machine (`.tasks/`)
 
 ```
