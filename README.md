@@ -58,18 +58,18 @@ At a high level, a goal is turned into a dependency graph (DAG), split into per-
 
 ```mermaid
 flowchart TD
-  Goal[User goal] --> Planner[1_architect.sh\n(Planner LLM)]
-  Planner -->|writes| Manifest[.tasks/manifest/dag.json]
-  Manifest --> Seeder[2_seeder.sh\n(seeds tasks)]
-  Seeder --> Open[.tasks/open/]
-  Open --> Overlord[3_overlord.sh\n(scheduler loop)]
-  Overlord -->|claim| Minion[4_minion.sh\n(worker per task)]
-  Minion --> Logs[.tasks/logs/<task>.log]
-  Minion --> Closed[.tasks/closed/]
-  Minion --> Dead[.tasks/dead/]
-  Dead --> Revive[6_revive.sh]\n
+  Goal[User goal] --> Planner["1_architect.sh<br />(Planner LLM)"]
+  Planner -->|writes| Manifest[".tasks/manifest/dag.json"]
+  Manifest --> Seeder["2_seeder.sh<br />(seeds tasks)"]
+  Seeder --> Open[".tasks/open/"]
+  Open --> Overlord["3_overlord.sh<br />(scheduler loop)"]
+  Overlord -->|claim| Minion["4_minion.sh<br />(worker per task)"]
+  Minion --> Logs[".tasks/logs/<task>.log"]
+  Minion --> Closed[".tasks/closed/"]
+  Minion --> Dead[".tasks/dead/"]
+  Dead --> Revive["6_revive.sh"]
   Revive --> Open
-  Overlord --> Status[5_status.sh]\n
+  Overlord --> Status["5_status.sh"]
 ```
 
 ### Planner (architect) details
@@ -230,3 +230,23 @@ CI layout:
 MIT
 _© 2025 James Ross • [Flying•Robots](https://github.com/flyingrobots)_
 _All Rights Reserved_
+
+---
+
+## Appendix: Environment Variables
+
+| Variable | Default | Used by | Purpose |
+|----------|---------|---------|---------|
+| `TASKS_DIR` | `$(pwd)/.tasks` | all scripts | Root for state tree (manifest/open/blocked/claimed/closed/dead/logs/pids/prompts). |
+| `TASKS_SKIP_LOCKDOWN` | `0` | `setup.sh` | When `1`, creates the tree without chmod 700/600 hardening (useful on shared filesystems). |
+| `MAX_WORKERS` | `4` | `setup.sh`, `3_overlord.sh` | Upper bound on concurrent minions the overlord will spawn. |
+| `TIMEOUT_SECONDS` | `300` | `4_minion.sh` | Timeout wrapper around the worker command; task fails if exceeded. |
+| `LLM_PLANNER_CMD` | `claude -p` | `setup.sh`, `1_architect.sh` | Planner command; must emit valid DAG JSON to stdout. |
+| `LLM_WORKER_CMD_JSON` | _unset_ | `setup.sh`, `4_minion.sh` | **Preferred**: JSON array of argv tokens for the worker. Must be a non-empty array. Parsed with `jq` into `LLM_WORKER_CMD`. |
+| `LLM_WORKER_CMD` | derived from JSON or default | `setup.sh`, `4_minion.sh` | Array used for execution (no shell eval). Exported for callers; do not set directly—use `LLM_WORKER_CMD_JSON`. |
+| `LLM_WORKER_CMD_STR` | derived | `setup.sh`, tests/logs | Shell-escaped string form for logging/debugging; mirrors `LLM_WORKER_CMD`. |
+| `OVERLORD_TICKS` | _unset_ | `adapters/control.sh`, `3_overlord.sh` | Optional test/debug guard: if set to a non-negative integer, overlord exits after that many scheduler ticks. |
+
+Notes:
+- Derived variables (`LLM_WORKER_CMD`, `LLM_WORKER_CMD_STR`) are computed in `setup.sh`; prefer configuring via `LLM_WORKER_CMD_JSON` only.
+- `TASKS_DIR` is respected by all scripts and tests; set once before running any entrypoint.
