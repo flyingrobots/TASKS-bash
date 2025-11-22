@@ -33,6 +33,24 @@ else
   cleanup_umask
 fi
 
+# Seed default worker prompt template if missing
+DEFAULT_WORKER_TEMPLATE_SOURCE="${TASKS_WORKER_TEMPLATE_SOURCE:-$(pwd)/prompts/worker_prompt.txt}"
+DEFAULT_WORKER_TEMPLATE_TARGET="$TASKS_DIR/prompts/worker.txt"
+if [ ! -f "$DEFAULT_WORKER_TEMPLATE_TARGET" ]; then
+  if [ -f "$DEFAULT_WORKER_TEMPLATE_SOURCE" ]; then
+    cp "$DEFAULT_WORKER_TEMPLATE_SOURCE" "$DEFAULT_WORKER_TEMPLATE_TARGET" || fail "Error: failed to copy worker prompt template"
+  else
+    cat >"$DEFAULT_WORKER_TEMPLATE_TARGET" <<'EOF' || fail "Error: failed to write worker prompt template"
+You are one of multiple parallel workers on the same git branch.
+You MUST NOT run git commands.
+Other workers may modify files concurrently; transient test/build/edit failures may be caused by their edits—retry locally without git.
+
+Task ID: {{TASK_ID}}
+Description: {{TASK_DESCRIPTION}}
+EOF
+  fi
+fi
+
 # Worker Configuration (prefixed envs; legacy aliases supported for compatibility)
 export TASKS_MAX_WORKERS=${TASKS_MAX_WORKERS:-4}
 export TASKS_TIMEOUT_SECONDS=${TASKS_TIMEOUT_SECONDS:-300}

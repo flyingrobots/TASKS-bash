@@ -57,9 +57,17 @@ fi
 description_raw=$(jq -r '.description // ""' "$TASK_FILE")
 description_clean=$(printf '%s' "$description_raw" | tr -cd '[:print:]' | head -c 2000)
 
-# Compose worker prompt with safety and concurrency guidance (rolling frontier)
-instructions="You are one of multiple parallel workers on the same git branch. You MUST NOT run git commands. Other workers may edit files concurrently; transient test/build/edit failures are expected—retry locally without git." \
-prompt=$(printf '%s\nTask %s: %s' "$instructions" "$task_id" "$description_clean")
+# Load worker prompt template (supports customization via TASKS_WORKER_PROMPT_TEMPLATE)
+template_path=${TASKS_WORKER_PROMPT_TEMPLATE:-$TASKS_DIR/prompts/worker.txt}
+if [ -f "$template_path" ]; then
+  template_content=$(cat "$template_path")
+else
+  template_content="You are one of multiple parallel workers on the same git branch.\nYou MUST NOT run git commands.\nOther workers may modify files concurrently; transient test/build/edit failures may be caused by their edits—retry locally without git.\n\nTask ID: {{TASK_ID}}\nDescription: {{TASK_DESCRIPTION}}"
+fi
+
+# Replace placeholders
+prompt=${template_content//{{TASK_ID}}/$task_id}
+prompt=${prompt//{{TASK_DESCRIPTION}}/$description_clean}
 
 # Verify log directory is writable before execution
 if [ ! -w "$TASKS_DIR/logs" ]; then

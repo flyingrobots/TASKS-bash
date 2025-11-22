@@ -325,11 +325,11 @@ The overlord loop (`3_overlord.sh`) orchestrates everything as a **rolling front
 2. Claims and executes `tests`
 3. Pattern continues: `integration` → `docs`
 
-Each minion receives a prompt that:
+Each minion receives a prompt template (default: `$TASKS_DIR/prompts/worker.txt`, override with `TASKS_WORKER_PROMPT_TEMPLATE`) that:
 
 - Explicitly **forbids running git commands**
 - Warns it is working alongside other workers on the same branch (expect transient test/build/edit failures from concurrent edits)
-- Includes the task description
+- Includes placeholders `{{TASK_ID}}` and `{{TASK_DESCRIPTION}}` that are filled per task
 
 Minion behavior:
 - Executes via `TASKS_LLM_WORKER_CMD`
@@ -445,6 +445,7 @@ CI Workflows:
 |`TASKS_LLM_WORKER_CMD_STR`|Derived|`setup.sh`, tests/logs|Shell-escaped for display|
 |`TASKS_OVERLORD_TICKS`|_unset_|`adapters/control.sh`, `3_overlord.sh`|Test/debug tick limit|
 |`TASKS_SLEEP_SECONDS`|`2`|`3_overlord.sh`|Loop delay|
+|`TASKS_WORKER_PROMPT_TEMPLATE`|`$TASKS_DIR/prompts/worker.txt`|`setup.sh`, `4_minion.sh`|Path to worker prompt template (placeholders: `{{TASK_ID}}`, `{{TASK_DESCRIPTION}}`).|
 
 </details>
 
