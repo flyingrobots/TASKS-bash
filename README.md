@@ -26,31 +26,15 @@ Give T.A.S.K.S. a goal and watch it work:
 **One command (full pipeline):**
 
 ```bash
+chmod +x tasks.sh  # first time only
 ./tasks.sh "Add request logging and rate limiting to our API"
 ```
 
 This runs setup → architect → seeder → overlord (rolling frontier) with a default tick limit so it finishes on its own. Logs live in `.tasks/logs/`.
 
-**Step-by-step (fine control):**
-
 ```bash
-# Make scripts executable
-chmod +x setup.sh 1_architect.sh 2_seeder.sh 3_overlord.sh 4_minion.sh 5_status.sh 6_revive.sh
-
-# Initialize
-./setup.sh
-
-# Generate plan
-./1_architect.sh "Add request logging and rate limiting to our API"
-
-# Seed tasks
-./2_seeder.sh
-
-# Monitor (in separate terminal)
-./5_status.sh
-
-# Execute
-./3_overlord.sh
+# One-shot run
+./tasks.sh "Add request logging and rate limiting to our API"
 ```
 
 **What just happened?** The architect generated this plan:
@@ -225,11 +209,7 @@ export TASKS_LLM_WORKER_CMD_JSON='["python3", "my_worker.py", "--mode", "edit"]'
 
 <details> <summary><strong>Planning Phase (architect)</strong></summary>
 
-When you run:
-
-```bash
-./1_architect.sh "Add request logging and rate limiting to our API"
-```
+When the orchestrator runs the **planning phase** (tasks.sh calls `1_architect.sh` under the hood):
 
 The architect:
 
@@ -383,7 +363,7 @@ Example output during execution:
 
 - Check if dependencies are in `closed/`
 - Example: If `tests` is stuck, verify both `logger` and `rate_limiter` completed
-- Restart overlord: `./3_overlord.sh`
+- Restart orchestration: rerun `./tasks.sh "<goal>"` (or `./3_overlord.sh` if you only need the scheduler)
 
 **Tasks in `dead/`:**
 
@@ -410,7 +390,7 @@ Fix the issue (install redis), then revive:
 
 ```bash
 ./6_revive.sh  # Moves rate_limiter.json: dead/ → open/
-./3_overlord.sh  # Overlord will pick it up automatically
+./tasks.sh "<goal>"  # Or run ./3_overlord.sh to resume scheduling only
 ```
 
 **Plans lack context:** Increase scan depth in `1_architect.sh`:
