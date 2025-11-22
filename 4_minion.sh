@@ -65,9 +65,12 @@ else
   template_content="You are one of multiple parallel workers on the same git branch.\nYou MUST NOT run git commands.\nOther workers may modify files concurrently; transient test/build/edit failures may be caused by their edits—retry locally without git.\n\nTask ID: {{TASK_ID}}\nDescription: {{TASK_DESCRIPTION}}"
 fi
 
-# Replace placeholders
-prompt=${template_content//{{TASK_ID}}/$task_id}
-prompt=${prompt//{{TASK_DESCRIPTION}}/$description_clean}
+# Replace placeholders in template body
+prompt_body=${template_content//{{TASK_ID}}/$task_id}
+prompt_body=${prompt_body//{{TASK_DESCRIPTION}}/$description_clean}
+
+# Ensure first line carries the task description for downstream tools
+prompt=$(printf 'Task %s: %s\n%s\n' "$task_id" "$description_clean" "$prompt_body")
 
 # Verify log directory is writable before execution
 if [ ! -w "$TASKS_DIR/logs" ]; then
