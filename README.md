@@ -302,9 +302,9 @@ graph TD
 
 </details> <details> <summary><strong>Execution Phase (overlord + minions)</strong></summary>
 
-The overlord loop (`3_overlord.sh`) orchestrates everything:
+The overlord loop (`3_overlord.sh`) orchestrates everything as a **rolling frontier**: it keeps claiming new work whenever capacity frees up; it never waits for all current tasks to finish before moving on.
 
-**Tick 1**:
+**Tick 1 (rolling frontier start)**:
 
 1. Checks capacity: 0/4 workers running
 2. Claims `design.json` from `open/` → `claimed/w_001/`
