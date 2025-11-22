@@ -51,6 +51,31 @@ EOF
   fi
 fi
 
+# Seed default architect prompt template if missing
+DEFAULT_ARCH_TEMPLATE_SOURCE="${TASKS_ARCHITECT_TEMPLATE_SOURCE:-$(pwd)/prompts/architect_prompt.txt}"
+DEFAULT_ARCH_TEMPLATE_TARGET="$TASKS_DIR/prompts/architect_template.txt"
+if [ ! -f "$DEFAULT_ARCH_TEMPLATE_TARGET" ]; then
+  if [ -f "$DEFAULT_ARCH_TEMPLATE_SOURCE" ]; then
+    cp "$DEFAULT_ARCH_TEMPLATE_SOURCE" "$DEFAULT_ARCH_TEMPLATE_TARGET" || fail "Error: failed to copy architect prompt template"
+  else
+    cat >"$DEFAULT_ARCH_TEMPLATE_TARGET" <<'EOF' || fail "Error: failed to write architect prompt template"
+You are the T.A.S.K.S. Architect.
+
+CONTEXT:
+- Project file tree intentionally omitted to keep the prompt light.
+- If you need directory context, explicitly ask for a targeted, shallow listing rather than the whole repo.
+
+GOAL: {{GOAL}}
+
+RULES:
+1. Break the goal into atomic, bounded tasks (2-4 hours estimated effort).
+2. NO CYCLES in dependencies.
+3. Output ONLY valid JSON. Do not include markdown fences or chatter.
+4. Reference existing files from the context in your task scopes.
+EOF
+  fi
+fi
+
 # Worker Configuration (prefixed envs; legacy aliases supported for compatibility)
 export TASKS_MAX_WORKERS=${TASKS_MAX_WORKERS:-4}
 export TASKS_TIMEOUT_SECONDS=${TASKS_TIMEOUT_SECONDS:-300}

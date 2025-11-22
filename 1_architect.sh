@@ -9,23 +9,20 @@ if [ -z "$GOAL" ]; then
     exit 1
 fi
 
+PROMPT_TEMPLATE="${TASKS_ARCHITECT_TEMPLATE:-$TASKS_DIR/prompts/architect_template.txt}"
 PROMPT_FILE="$TASKS_DIR/prompts/architect.txt"
-if ! cat > "$PROMPT_FILE" <<EOF
-You are the T.A.S.K.S. Architect.
 
-CONTEXT:
-- Project file tree intentionally omitted to keep the prompt light.
-- If you need directory context, explicitly ask for a targeted, shallow listing rather than the whole repo.
+# Load template (fallback to built-in default if missing)
+if [ -f "$PROMPT_TEMPLATE" ]; then
+    template_content=$(cat "$PROMPT_TEMPLATE")
+else
+    template_content="You are the T.A.S.K.S. Architect.\n\nCONTEXT:\n- Project file tree intentionally omitted to keep the prompt light.\n- If you need directory context, explicitly ask for a targeted, shallow listing rather than the whole repo.\n\nGOAL: {{GOAL}}\n\nRULES:\n1. Break the goal into atomic, bounded tasks (2-4 hours estimated effort).\n2. NO CYCLES in dependencies.\n3. Output ONLY valid JSON. Do not include markdown fences or chatter.\n4. Reference existing files from the context in your task scopes."
+fi
 
-GOAL: $GOAL
+# Render template
+prompt_rendered=${template_content//{{GOAL}}/$GOAL}
 
-RULES:
-1. Break the goal into atomic, bounded tasks (2-4 hours estimated effort).
-2. NO CYCLES in dependencies.
-3. Output ONLY valid JSON. Do not include markdown fences or chatter.
-4. Reference existing files from the context in your task scopes.
-EOF
-then
+if ! printf '%s\n' "$prompt_rendered" > "$PROMPT_FILE"; then
     port_log_error "Failed to write prompt file"
     exit 1
 fi

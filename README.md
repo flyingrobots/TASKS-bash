@@ -446,6 +446,7 @@ CI Workflows:
 |`TASKS_OVERLORD_TICKS`|_unset_|`adapters/control.sh`, `3_overlord.sh`|Test/debug tick limit|
 |`TASKS_SLEEP_SECONDS`|`2`|`3_overlord.sh`|Loop delay|
 |`TASKS_WORKER_PROMPT_TEMPLATE`|`$TASKS_DIR/prompts/worker.txt`|`setup.sh`, `4_minion.sh`|Path to worker prompt template (placeholders: `{{TASK_ID}}`, `{{TASK_DESCRIPTION}}`).|
+|`TASKS_ARCHITECT_TEMPLATE`|`$TASKS_DIR/prompts/architect_template.txt`|`setup.sh`, `1_architect.sh`|Path to planner prompt template (placeholder: `{{GOAL}}`).|
 
 </details>
 
