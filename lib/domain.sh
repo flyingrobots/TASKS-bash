@@ -39,7 +39,7 @@ domain_spawn_next_task() {
   current=$(port_count_claimed_workers)
   open_count=$(port_count_open_tasks)
 
-  if [ "$current" -ge "${MAX_WORKERS:-1}" ]; then
+  if [ "$current" -ge "${TASKS_MAX_WORKERS:-1}" ]; then
     return 1
   fi
   if [ "$open_count" -le 0 ]; then
@@ -53,7 +53,16 @@ domain_spawn_next_task() {
   task_id=$(basename "$task_path" .json)
   worker_id=$(port_new_worker_id)
 
-  port_claim_task "$worker_id" "$task_path" "$task_id"
+  if [ -z "$worker_id" ]; then
+    port_log_error "Failed to allocate worker id for $task_id"
+    return 1
+  fi
+
+  if ! port_claim_task "$worker_id" "$task_path" "$task_id"; then
+    port_log_error "Failed to claim $task_id for worker $worker_id"
+    return 1
+  fi
+
   port_launch_minion "$worker_id" "$task_id"
   port_log_info "Spawned $worker_id for $task_id"
   return 0

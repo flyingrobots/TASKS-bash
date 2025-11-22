@@ -6,6 +6,7 @@ setup() {
   cp "${PROJECT_ROOT}/setup.sh" "${PROJECT_ROOT}/1_architect.sh" "$TEST_TMP/"
   mkdir -p "$TEST_TMP/adapters"
   cp "${PROJECT_ROOT}/adapters/log.sh" "${PROJECT_ROOT}/adapters/llm_planner.sh" "$TEST_TMP/adapters/"
+  cp -r "${PROJECT_ROOT}/lib" "$TEST_TMP/"
   mkdir -p "$TEST_TMP/tests/fixtures"
   cp "${PROJECT_ROOT}/tests/fixtures/fake_planner.sh" "$TEST_TMP/tests/fixtures/"
   chmod +x "$TEST_TMP/tests/fixtures/fake_planner.sh"
@@ -13,6 +14,7 @@ setup() {
 }
 
 teardown() {
+  chmod +w "$TEST_TMP/.tasks/manifest" 2>/dev/null || true
   rm -rf "$TEST_TMP"
 }
 
@@ -23,7 +25,7 @@ teardown() {
 }
 
 @test "1_architect.sh produces manifest JSON using fake planner" {
-  export LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/fake_planner.sh"
+  export TASKS_LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/fake_planner.sh"
 
   run bash ./1_architect.sh "Ship a new feature"
   [ "$status" -eq 0 ]
@@ -37,7 +39,7 @@ teardown() {
   GOAL_COUNT=${output:-0}
   [ "$GOAL_COUNT" -eq 1 ]
 
-  jq -e '.tasks[0].id == "task_01"' .tasks/manifest/dag.json >/dev/null
+  jq -e '.tasks[0].id == "bootstrap"' .tasks/manifest/dag.json >/dev/null
 }
 
 @test "1_architect.sh fails when planner exits non-zero" {
@@ -49,7 +51,7 @@ exit 1
 SCRIPT
   chmod +x "$TEST_TMP/tests/fixtures/failing_planner.sh"
 
-  export LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/failing_planner.sh"
+  export TASKS_LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/failing_planner.sh"
 
   run bash ./1_architect.sh "Test goal"
   [ "$status" -ne 0 ]
@@ -64,7 +66,7 @@ echo "This is not valid JSON"
 SCRIPT
   chmod +x "$TEST_TMP/tests/fixtures/invalid_json_planner.sh"
 
-  export LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/invalid_json_planner.sh"
+  export TASKS_LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/invalid_json_planner.sh"
 
   run bash ./1_architect.sh "Test goal"
   [ "$status" -ne 0 ]
@@ -79,7 +81,7 @@ echo '{"tasks":[]}'
 SCRIPT
   chmod +x "$TEST_TMP/tests/fixtures/empty_tasks_planner.sh"
 
-  export LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/empty_tasks_planner.sh"
+  export TASKS_LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/empty_tasks_planner.sh"
 
   run bash ./1_architect.sh "Test goal"
   # Script should handle empty manifest appropriately
@@ -94,12 +96,10 @@ SCRIPT
   # Make the manifest directory unwritable
   chmod -w .tasks/manifest
 
-  export LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/fake_planner.sh"
+  export TASKS_LLM_PLANNER_CMD="$TEST_TMP/tests/fixtures/fake_planner.sh"
+  export TASKS_SKIP_LOCKDOWN=1
 
   run bash ./1_architect.sh "Test goal"
   [ "$status" -ne 0 ]
   [[ "$output" == *"write"* ]] || [[ "$output" == *"permission"* ]] || [[ "$output" == *"denied"* ]]
-
-  # Restore permissions for teardown
-  chmod +w .tasks/manifest
 }

@@ -22,16 +22,20 @@ read -p "Revive all to 'open'? (y/n) " -n 1 -r
 echo ""
 
 if [[ $REPLY =~ ^[Yy]$ ]]; then
-    # Verify files exist and move them, checking for errors
-    if [ "${#files[@]}" -eq 0 ]; then
-        echo "Error: No files to move" >&2
+    errors=0
+    for f in "${files[@]}"; do
+        if [ ! -e "$f" ]; then
+            echo "Skip missing file: $f" >&2
+            continue
+        fi
+        if ! mv -- "$f" .tasks/open/; then
+            echo "Error: Failed to move $f to .tasks/open/" >&2
+            errors=$((errors+1))
+        fi
+    done
+    if [ "$errors" -ne 0 ]; then
+        echo "Failed to revive $errors task(s)" >&2
         exit 1
     fi
-
-    if mv .tasks/dead/*.json .tasks/open/; then
-        echo "✨ Tasks revived. The Overlord will retry them shortly."
-    else
-        echo "Error: Failed to revive tasks" >&2
-        exit 1
-    fi
+    echo "✨ Tasks revived. The Overlord will retry them shortly."
 fi

@@ -1,0 +1,6 @@
+{"tasks":[
+ {"id":"bootstrap","description":"Create project skeleton: app/, tests/, README stub","dependencies":[]},
+ {"id":"parser","description":"Add app/preview.sh to convert README.md to public/index.html using pandoc if present, otherwise a minimal sed/awk fallback; add bats tests","dependencies":["bootstrap"]},
+ {"id":"watch","description":"Add --watch flag that rebuilds on change using inotifywait/fswatch fallback","dependencies":["parser"]},
+ {"id":"packaging","description":"Add Makefile targets build/test and update README usage section","dependencies":["watch"]}
+]}

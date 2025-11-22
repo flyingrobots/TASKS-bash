@@ -6,6 +6,7 @@ setup() {
   cp "$PROJECT_ROOT/2_seeder.sh" "$PROJECT_ROOT/setup.sh" "$TEST_TMP/"
   mkdir -p "$TEST_TMP/adapters"
   cp "$PROJECT_ROOT/adapters/log.sh" "$TEST_TMP/adapters/"
+  cp -r "$PROJECT_ROOT/lib" "$TEST_TMP/"
 
   # Explicitly create all required directories instead of relying on setup.sh
   mkdir -p "$TEST_TMP/.tasks/manifest"

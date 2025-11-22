@@ -4,37 +4,96 @@ setup() {
   PROJECT_ROOT="$(pwd)"
   TEST_TMP="$(mktemp -d)"
   cp "${PROJECT_ROOT}/setup.sh" "$TEST_TMP/"
-  cd "$TEST_TMP"
+  cd "$TEST_TMP" || return 1
 }
 
 teardown() {
-  rm -rf "$TEST_TMP"
+  [ -n "$TEST_TMP" ] && rm -rf "$TEST_TMP"
 }
 
 @test "setup.sh creates .tasks directory tree" {
-  run bash -c "source ./setup.sh"
+  rm -rf .tasks
+  run bash ./setup.sh
   [ "$status" -eq 0 ]
 
-  for dir in manifest blocked open claimed closed dead logs prompts; do
-    [ -d ".tasks/${dir}" ]
+  expected=(manifest blocked open claimed closed dead logs prompts pids)
+
+  # exact directory set
+  mapfile -t actual < <(find .tasks -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
+  mapfile -t expected_sorted < <(printf '%s\n' "${expected[@]}" | sort)
+  diff_output=$(diff <(printf '%s\n' "${expected_sorted[@]}") <(printf '%s\n' "${actual[@]}") || true)
+  [ -z "$diff_output" ]
+
+  for dir in "${expected[@]}"; do
+    if [ "$dir" != "prompts" ]; then
+      [ "$(find ".tasks/${dir}" -mindepth 1 | wc -l)" -eq 0 ]
+    fi
+    perms=$(stat -c '%a' ".tasks/${dir}" 2>/dev/null || stat -f '%Lp' ".tasks/${dir}" 2>/dev/null || true)
+    if [ -z "$perms" ]; then
+      echo "stat failed to read permissions for .tasks/${dir}" >&2
+      return 1
+    fi
+    perms=${perms#0}
+    [ "$perms" = "700" ]
   done
 }
 
-@test "setup.sh exports expected environment variables" {
-  run bash -c 'source ./setup.sh && echo "$TASKS_DIR:$MAX_WORKERS:$LLM_PLANNER_CMD:$LLM_WORKER_CMD"'
+@test "setup.sh exports expected environment variables (defaults)" {
+  run bash -c 'source ./setup.sh && printf "%s\n%s\n%s\n%s\n" "$TASKS_DIR" "$TASKS_MAX_WORKERS" "$TASKS_LLM_PLANNER_CMD_STR" "$TASKS_LLM_WORKER_CMD_STR"'
   [ "$status" -eq 0 ]
 
-  IFS=':' read -r tasks_dir max_workers planner_cmd worker_cmd <<<"${output}"
-  [ "$tasks_dir" = "$TEST_TMP/.tasks" ]
-  [ "$max_workers" = "4" ]
-  [ "$planner_cmd" = "claude -p" ]
-  [ "$worker_cmd" = "claude --dangerously-skip-permissions" ]
+  mapfile -t vars < <(printf '%s' "$output")
+  [ "${vars[0]}" = "$TEST_TMP/.tasks" ]
+  [ "${vars[1]}" = "4" ]
+  [ "${vars[2]}" = "claude -p" ]
+  [ "${vars[3]}" = "claude --dangerously-skip-permissions" ]
 }
 
-@test "get_worker_id returns namespaced id" {
-  run bash -c "source ./setup.sh && get_worker_id"
+@test "get_worker_id returns namespaced id (format)" {
+  run bash -c "source ./setup.sh && get_worker_id && get_worker_id"
   [ "$status" -eq 0 ]
-  # Format: w_{timestamp}_{PID}_{RANDOM}
-  # timestamp is at least 10 digits, PID and RANDOM are variable
-  [[ "$output" =~ ^w_[0-9]{10,}_[0-9]+_[0-9]+$ ]]
+  mapfile -t ids < <(printf '%s' "$output")
+  id1="${ids[0]}"; id2="${ids[1]}"
+  [[ "$id1" =~ ^w_[A-Za-z0-9]+_[0-9]+_[0-9]+$ ]]
+  [[ "$id2" =~ ^w_[A-Za-z0-9]+_[0-9]+_[0-9]+$ ]]
+  IFS='_' read -r prefix1 rand1 ts1 pid1 <<<"$id1"
+  IFS='_' read -r prefix2 rand2 ts2 pid2 <<<"$id2"
+  [ "$prefix1" = "w" ]
+  [ "$prefix2" = "w" ]
+  [[ -n "$rand1" && -n "$ts1" && -n "$pid1" ]]
+  [[ -n "$rand2" && -n "$ts2" && -n "$pid2" ]]
+  [ "$id1" != "$id2" ]
+}
+
+@test "TASKS_SKIP_LOCKDOWN leaves default permissions" {
+  export TASKS_DIR="$TEST_TMP/skiplock"
+  export TASKS_SKIP_LOCKDOWN=1
+  run bash -c 'umask 022 && ./setup.sh'
+  [ "$status" -eq 0 ]
+
+  perms=$(stat -c '%a' "$TASKS_DIR" 2>/dev/null || stat -f '%Lp' "$TASKS_DIR")
+  [ "$perms" != "700" ]
+}
+
+@test "LLM_WORKER_CMD_JSON parses valid array" {
+  export TASKS_LLM_WORKER_CMD_JSON='["/bin/echo","-n"]'
+  run bash -c 'source ./setup.sh && printf "%s\n" "${TASKS_LLM_WORKER_CMD[@]}"'
+  [ "$status" -eq 0 ]
+  mapfile -t vals < <(printf '%s' "$output")
+  [ "${#vals[@]}" -ge 2 ]
+  [ "${vals[0]}" = "/bin/echo" ]
+}
+
+@test "LLM_WORKER_CMD_JSON rejects malformed JSON" {
+  export TASKS_LLM_WORKER_CMD_JSON='not json'
+  run bash ./setup.sh
+  [ "$status" -ne 0 ]
+  [[ "$output" =~ (JSON|json|parse|Invalid) ]]
+}
+
+@test "LLM_WORKER_CMD_JSON rejects empty array" {
+  export TASKS_LLM_WORKER_CMD_JSON='[]'
+  run bash ./setup.sh
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"empty"* ]] || [[ "$output" == *"JSON array"* ]] || [[ "$output" == *"must not be empty"* ]]
 }

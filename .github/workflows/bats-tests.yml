@@ -1,0 +1,55 @@
+name: BATS Tests
+
+on:
+  pull_request:
+    branches: ['**']
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'  # weekly (Mon 06:00 UTC)
+
+jobs:
+  bats-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build test Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.test
+          tags: tasks-bash-tests
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run Makefile test target (non-e2e)
+        id: test
+        run: |
+          docker run --name tasks-bash-tests-run --rm tasks-bash-tests make test
+
+      - name: Upload logs on failure
+        if: failure() && steps.test.outcome == 'failure'
+        run: |
+          mkdir -p /tmp/bats-logs
+          docker cp tasks-bash-tests-run:/app/.tasks/logs /tmp/bats-logs || true
+        continue-on-error: true
+      - name: Archive logs
+        if: failure() && steps.test.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: bats-logs
+          path: /tmp/bats-logs
+          retention-days: 7
