@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Deterministic minion stub: reads the prompt and performs id-specific actions
-read -r prompt
+READ_TIMEOUT="${FAKE_WORKER_READ_TIMEOUT:-3}"
+if ! read -r -t "$READ_TIMEOUT" prompt; then
+  echo "fake_worker: timed out waiting for prompt" >&2
+  exit 1
+fi
 
 case "$prompt" in
   *bootstrap*)
