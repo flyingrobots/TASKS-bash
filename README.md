@@ -2,252 +2,495 @@
 
 ![task-bash-social](https://github.com/user-attachments/assets/c06b77db-9e1c-4cea-adad-785097ca58b1)
 
-**T**asks **A**re **S**equenced **K**ey **S**teps is a file-system-based autonomous agent runner. It turns a goal into a dependency-ordered DAG, manages tasks via the filesystem, and drives parallel LLM workers to get the work done.
+**T**asks **A**re **S**equenced **K**ey **S**teps - A filesystem-based autonomous agent runner that turns goals into dependency-ordered DAGs and executes them with parallel LLM workers.
 
-> [!WARNING]
-> This gives an LLM write access to your workspace. Run inside git (or a Docker container that copies the repo in) so you can revert if things go sideways.
+## What It Does
 
-> [!CAUTION]
-> USE AT YOUR OWN RISK. If you run this software, you're unleashing the swarm. Not one LLM going buck wild. Unsupervised. Multiple LLMs.  
-> 🥀
-> May Claude have mercy on your repo.
+Give T.A.S.K.S. a goal and watch it work:
 
-## Architecture (Filesystem = Database)
+**You say**: `"Add request logging and rate limiting to our API"`
 
-- **setup.sh (Bootstrapper)**: configures env vars and creates the `.tasks/` directory scaffold.
-- **1_architect.sh (Architect)**: scans the project and prompts an LLM to emit a JSON DAG.
-- **2_seeder.sh (Seeder)**: converts the DAG into per-task JSON files, placing them in `open/` or `blocked/` based on dependencies.
-- **3_overlord.sh (Overlord)**: main loop that unblocks tasks when deps close, throttles workers, and spawns minions.
-- **4_minion.sh (Minion)**: runs one task via LLM, updates state, and logs output.
-- **5_status.sh (Dashboard)**: live view of the state machine.
-- **6_revive.sh (Reviver)**: moves failed tasks back to `open/` for retry.
+**T.A.S.K.S. does**:
+
+1. Generates a dependency-ordered plan (DAG)
+2. Breaks work into parallelizable tasks
+3. Executes with multiple LLM workers
+4. Tracks everything via the filesystem
+
+**The result**: Six tasks execute in optimal order - design work happens first, logger and rate limiter get built in parallel, then tests, integration, and docs follow automatically.
+
+**The filesystem IS the database** - all state lives in visible, inspectable files.
+
+## Quick Start
+
+```bash
+# Make scripts executable
+chmod +x setup.sh 1_architect.sh 2_seeder.sh 3_overlord.sh 4_minion.sh 5_status.sh 6_revive.sh
+
+# Initialize
+./setup.sh
+
+# Generate plan
+./1_architect.sh "Add request logging and rate limiting to our API"
+
+# Seed tasks
+./2_seeder.sh
+
+# Monitor (in separate terminal)
+./5_status.sh
+
+# Execute
+./3_overlord.sh
+```
+
+**What just happened?** The architect generated this plan:
+
+```mermaid
+graph TD
+  design[design: Design logging schema<br/>and rate limit strategy] --> logger[logger: Implement request<br/>logger middleware]
+  design --> rate_limiter[rate_limiter: Implement rate<br/>limiting middleware]
+  logger --> tests[tests: Write tests for<br/>logging and rate limiting]
+  rate_limiter --> tests
+  tests --> integration[integration: Integrate middleware<br/>into API routes]
+  integration --> docs[docs: Update API<br/>documentation]
+  
+  style design fill:#e1f5ff
+  style logger fill:#fff4e1
+  style rate_limiter fill:#fff4e1
+  style tests fill:#e8f5e9
+  style integration fill:#f3e5f5
+  style docs fill:#fce4ec
+```
+
+The overlord executes `design` first, then `logger` and `rate_limiter` run in parallel, then everything else follows in order.
 
 ## Prerequisites
 
 - Bash (macOS/Linux/WSL)
 - `jq` for JSON parsing
-  - macOS: `brew install jq`
-  - Linux: `sudo apt-get install jq`
-- LLM CLI tool: Default is Anthropic's **Claude Code CLI** (install & configure per the official docs: https://docs.anthropic.com/en/docs/claude-code/overview). Any executable that accepts the prompt as the final argument and prints to stdout will also work.
+    - macOS: `brew install jq`
+    - Linux: `sudo apt-get install jq`
+- An LLM CLI (default: [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview))
+    - Any CLI that accepts prompts and writes to stdout works
 
-## Quick Start
+## ⚠️ Important Safety Notes
 
-```bash
-# 0) Make the task scripts executable (avoid chmod-ing everything)
-chmod +x setup.sh 1_architect.sh 2_seeder.sh 3_overlord.sh 4_minion.sh 5_status.sh 6_revive.sh
+> [!WARNING] **This gives LLMs write access to your workspace.** Run inside git (or Docker) so you can revert changes.
 
-# 1) Initialize directories and env vars
-./setup.sh
+> [!CAUTION] **USE AT YOUR OWN RISK.** Multiple unsupervised LLMs will modify your codebase in parallel.
 
-# 2) Generate a plan (DAG)
-./1_architect.sh "Refactor auth to use JWTs"
+The default worker uses `--dangerously-skip-permissions` to bypass Claude Code confirmations. Always:
 
-# 3) Seed tasks
-./2_seeder.sh
+- Work in a git repo and review diffs before committing
+- Or use a disposable Docker container
+- Check `.tasks/logs/*.log` to see what happened
 
-# 4) Monitor (separate terminal)
-./5_status.sh
+---
 
-# 5) Unleash the swarm
-./3_overlord.sh
-```
+## How It Works
 
-## How This Works (End to End)
-
-At a high level, a goal is turned into a dependency graph (DAG), split into per-task JSON files, and executed by worker processes under a scheduler loop. The entire system stores state on disk so it is inspectable and resumable.
+### Architecture Overview
 
 ```mermaid
 flowchart TD
-  Goal[User goal] --> Planner["1_architect.sh<br />(Planner LLM)"]
-  Planner -->|writes| Manifest[".tasks/manifest/dag.json"]
+  Goal["Goal: Add logging + rate limiting"] --> Planner["1_architect.sh<br />(Planner LLM)"]
+  Planner -->|writes| Manifest[".tasks/manifest/dag.json<br/>(6 tasks, dependencies)"]
   Manifest --> Seeder["2_seeder.sh<br />(seeds tasks)"]
-  Seeder --> Open[".tasks/open/"]
+  Seeder --> Open[".tasks/open/<br/>design.json"]
   Open --> Overlord["3_overlord.sh<br />(scheduler loop)"]
-  Overlord -->|claim| Minion["4_minion.sh<br />(worker per task)"]
-  Minion --> Logs[".tasks/logs/<task>.log"]
-  Minion --> Closed[".tasks/closed/"]
-  Minion --> Dead[".tasks/dead/"]
-  Dead --> Revive["6_revive.sh"]
-  Revive --> Open
-  Overlord --> Status["5_status.sh"]
+  Overlord -->|claims| Minion1["4_minion.sh<br />(design task)"]
+  Minion1 --> Closed1[".tasks/closed/design.json"]
+  Overlord -->|unblocks & claims| Minion2["4_minion.sh<br />(logger task)"]
+  Overlord -->|parallel| Minion3["4_minion.sh<br />(rate_limiter task)"]
+  Minion2 --> Logs[".tasks/logs/<task>.log"]
+  Minion3 --> Logs
 ```
 
-### Planner (architect) details
-- `1_architect.sh` builds a **planner prompt** from repo context, the user goal, and guardrails.
-- It executes `TASKS_LLM_PLANNER_CMD` (default `claude -p`) and expects **valid JSON** on stdout shaped like:
-  ```json
-  {
-    "tasks": [
-      {"id": "plan", "description": "write plan", "deps": []},
-      {"id": "code", "description": "implement", "deps": ["plan"]}
-    ]
-  }
-  ```
-- The file is saved to `.tasks/manifest/dag.json` and is the single source of truth for the DAG.
+### The State Machine (`.tasks/`)
 
-### DAG seeding (seeder)
-`2_seeder.sh` reads `dag.json` and writes one JSON file per task:
-- If a task has **no deps**, its file goes to `.tasks/open/<id>.json`.
-- If it has unmet deps, it goes to `.tasks/blocked/<id>.json` with the dep list preserved.
-
-Example DAG to files:
-
-```mermaid
-graph LR
-  plan((plan)) --> code((code))
-  plan((plan)) --> docs((docs))
-```
-
-Results on disk:
-- `.tasks/open/plan.json`
-- `.tasks/blocked/code.json` (deps `["plan"]`)
-- `.tasks/blocked/docs.json` (deps `["plan"]`)
-
-### Script roles (expanded)
-- **setup.sh** – config & directory scaffold; parses `TASKS_LLM_WORKER_CMD_JSON`; permission lockdown.
-- **1_architect.sh** – planner prompt + LLM -> `dag.json`.
-- **2_seeder.sh** – splits DAG into per-task files, routes to `open/` vs `blocked/`.
-- **3_overlord.sh** – scheduler loop: unblocks tasks, enforces `TASKS_MAX_WORKERS`, claims work, spawns minions, waits.
-- **4_minion.sh** – executes one task via `TASKS_LLM_WORKER_CMD` (array), logs output, moves task to `closed/` or `dead/`.
-- **5_status.sh** – renders the current tree for humans.
-- **6_revive.sh** – moves items from `dead/` back to `open/` for retries.
-
-### Overlord loop (precise)
-Each tick of `3_overlord.sh` does:
-1) **Unblock**: move any task whose deps are all in `closed/` from `blocked/` -> `open/`.
-2) **Capacity check**: count running workers vs `TASKS_MAX_WORKERS`.
-3) **Claim**: atomically move up to the remaining capacity from `open/` -> `claimed/w_<id>/task.json`.
-4) **Spawn**: fork `4_minion.sh <worker_id> <task_id>` for each claim; record pid under `.tasks/pids/`.
-5) **Reap**: wait for any pid to finish, then loop.
-
-```mermaid
-flowchart TD
-  T0((tick)) --> U[Unblock deps satisfied]
-  U --> C[Check capacity]
-  C -->|room| Q[Claim tasks -> claimed/w_<id>/]
-  Q --> S[Spawn minions]
-  S --> R[Wait/Reap pids]
-  R --> T0
-```
-
-### Task lifecycle (exact states)
-
-```mermaid
-stateDiagram-v2
-  [*] --> open
-  open --> claimed: claimed by overlord
-  claimed --> closed: minion exits 0 (mv to closed)
-  claimed --> dead: minion exits non-zero / timeout / invalid JSON / log dir unwritable
-  dead --> open: revive.sh
-```
-
-Key guarantees:
-- All state changes are file moves inside `TASKS_DIR` (atomic on same filesystem).
-- Logs are always written to `.tasks/logs/<task_id>.log` before status transition.
-- If cleanup fails (e.g., read-only dirs), the minion logs and exits non-zero to surface the issue.
-
-## State Machine (`.tasks/`)
+After running our example, the filesystem looks like this:
 
 ```
 .tasks/
-├── manifest/        # The Architect's original plan (dag.json)
-├── prompts/         # System prompts generated for the LLMs
-├── blocked/         # 🛑 Tasks waiting for dependencies to complete
-├── open/            # 🟢 Tasks ready to be picked up by workers
-├── claimed/         # 🚀 Tasks currently being executed (Mutex Lock)
-│   └── w_<id>/      #    (Atomic directory per active worker)
-├── closed/          # 🏁 Successfully completed tasks
-├── dead/            # 💀 Tasks that failed (exit code != 0)
-└── logs/            # 📄 Stdout/Stderr logs for every execution
+├── manifest/
+│   └── dag.json                 # Original plan with all 6 tasks
+├── prompts/
+│   └── architect.txt            # Planner prompt for the DAG
+├── blocked/
+│   ├── tests.json               # Waiting for logger + rate_limiter
+│   ├── integration.json         # Waiting for tests
+│   └── docs.json                # Waiting for integration
+├── open/
+│   └── design.json              # 🟢 Ready to execute
+├── claimed/
+│   └── w_001/                   # 🚀 Worker 1 is executing design
+│       └── design.json
+├── closed/                      # 🏁 Nothing completed yet
+├── dead/                        # 💀 No failures yet
+└── logs/
+    └── design.log               # Live output from design task
 ```
 
-## Setup & Permissions
+As work progresses:
 
-- `./setup.sh` builds the `.tasks/` tree. By default it sets `umask 077` and enforces `0700` on directories and `0600` on files (defensive hardening).
-- Set `TASKS_SKIP_LOCKDOWN=1` to skip the chmod step (useful on shared or constrained filesystems); structure is still created.
-- Errors are reported to stderr and the script returns/non-zero without killing the parent shell when sourced.
-- `jq` is required if you set `TASKS_LLM_WORKER_CMD_JSON`; otherwise only Bash and coreutils/find are needed.
+1. `design.json` moves from `claimed/` → `closed/`
+2. `logger.json` and `rate_limiter.json` unblock and move to `open/`
+3. Two workers claim and execute them in parallel
+4. When both finish, `tests.json` unblocks
+5. The chain continues until `docs.json` completes
 
-## Configuration & LLM Swaps
+### Task Lifecycle
 
-All runtime config lives in `setup.sh`. Override via env vars before running:
+Here's what happens to the `logger` task:
 
-- `TASKS_DIR` (default `$(pwd)/.tasks`): location of the state tree.
-- `TASKS_SKIP_LOCKDOWN=1`: create the tree without chmod 700/600 (useful in shared or constrained filesystems).
-- `TASKS_MAX_WORKERS` (default `4`): max concurrent minions.
-- `TASKS_TIMEOUT_SECONDS` (default `300`): per-task timeout applied around the worker command.
-- `TASKS_LLM_PLANNER_CMD` (default `claude -p`): planner that reads the prompt file and goal, writes JSON DAG to stdout.
-- `TASKS_LLM_WORKER_CMD_JSON` (preferred): JSON array of argv tokens for the worker. Required format: non-empty array of strings. Example:
-  ```bash
-  export TASKS_LLM_WORKER_CMD_JSON='["python3","my_worker.py","--mode","edit"]'
-  ```
-  `setup.sh` parses this with `jq`, fails fast if jq is missing or JSON is malformed/empty, and exports `TASKS_LLM_WORKER_CMD` (array) plus a shell-escaped `TASKS_LLM_WORKER_CMD_STR` for logging.
-- Default worker (when `TASKS_LLM_WORKER_CMD_JSON` is unset): `claude --dangerously-skip-permissions` executed as argv (no shell). Swap it by setting `TASKS_LLM_WORKER_CMD_JSON`.
+```mermaid
+stateDiagram-v2
+  [*] --> blocked: Initially blocked (waiting for design)
+  blocked --> open: design.json moves to closed/
+  open --> claimed: Overlord claims for worker
+  claimed --> closed: Worker succeeds (exit 0)
+  claimed --> dead: Worker fails (exit non-zero)
+  dead --> open: ./6_revive.sh (retry)
+```
 
-> [!CAUTION]
-> The default worker uses `--dangerously-skip-permissions`, which bypasses Claude Code confirmation prompts and grants write access. Use only inside a disposable workspace or git repo, and review `.tasks/logs/*.log` plus `git diff` before committing.
+Every task follows this same flow.
 
-Notes on command execution:
-- The worker receives the prompt on STDIN; arguments are not shell-expanded (array is executed directly).
-- Paths/flags containing spaces or quotes must be separate JSON array elements—do **not** rely on shell splitting.
-- Planner remains string-based for simplicity; it is invoked as a single command line (`$TASKS_LLM_PLANNER_CMD <prompt> <goal>`). If your planner needs complex argv, wrap it in a small shim script.
+### Component Roles
 
-## Components At a Glance
+|Script|What It Does|Example Output|
+|---|---|---|
+|`setup.sh`|Creates `.tasks/` structure|Directories, env vars, permissions|
+|`1_architect.sh`|Goal → DAG|`dag.json` with 6 tasks|
+|`2_seeder.sh`|DAG → individual task files|`design.json` in `open/`, others in `blocked/`|
+|`3_overlord.sh`|Dependency resolution + spawning|Unblocks tasks, spawns workers|
+|`4_minion.sh`|Executes one task|Runs LLM, writes `logger.log`|
+|`5_status.sh`|Live dashboard|Shows what's running/blocked/done|
+|`6_revive.sh`|Retry failed tasks|Moves `dead/` → `open/`|
 
-| Script          | Role                                      |
-|-----------------|-------------------------------------------|
-| setup.sh        | Global config; creates directory scaffold |
-| 1_architect.sh  | Builds context and writes `dag.json`      |
-| 2_seeder.sh     | DAG -> per-task files in .tasks           |
-| 3_overlord.sh   | Dependency resolution + worker spawning   |
-| 4_minion.sh     | Executes a single task via LLM            |
-| 5_status.sh     | Dashboard for current state               |
-| 6_revive.sh     | Moves `dead/` tasks back to `open/`       |
+---
+
+## Configuration
+
+All settings live in `setup.sh`. Override via environment variables:
+
+### Essential Settings
+
+|Variable|Default|Purpose|
+|---|---|---|
+|`TASKS_MAX_WORKERS`|`4`|Max concurrent workers (could run `logger` and `rate_limiter` simultaneously)|
+|`TASKS_TIMEOUT_SECONDS`|`300`|Kill a task if it takes longer than this|
+|`TASKS_DIR`|`$(pwd)/.tasks`|Where state lives|
+
+### LLM Configuration
+
+**Worker Command (Preferred):**
+
+```bash
+export TASKS_LLM_WORKER_CMD_JSON='["claude", "--dangerously-skip-permissions"]'
+```
+
+**Planner Command:**
+
+```bash
+export TASKS_LLM_PLANNER_CMD="claude -p"
+```
+
+Want to use a different LLM? Just point to any CLI that reads stdin and writes to stdout:
+
+```bash
+export TASKS_LLM_WORKER_CMD_JSON='["python3", "my_worker.py", "--mode", "edit"]'
+```
+
+### Advanced Options
+
+|Variable|Default|Purpose|
+|---|---|---|
+|`TASKS_SKIP_LOCKDOWN`|`0`|Set to `1` to skip chmod 700/600 hardening|
+|`TASKS_SLEEP_SECONDS`|`2`|Delay between scheduler ticks|
+|`TASKS_OVERLORD_TICKS`|_unset_|Limit ticks (testing/debug)|
+
+---
+
+## Detailed Operation
+
+<details> <summary><strong>Planning Phase (architect)</strong></summary>
+
+When you run:
+
+```bash
+./1_architect.sh "Add request logging and rate limiting to our API"
+```
+
+The architect:
+
+1. Scans your repo for context (file tree, key files)
+2. Builds a prompt with your goal and guardrails
+3. Asks the LLM to generate a DAG
+
+The LLM returns JSON like this:
+
+```json
+{
+  "tasks": [
+    {
+      "id": "design",
+      "description": "Design logging schema and rate limit strategy",
+      "dependencies": []
+    },
+    {
+      "id": "logger",
+      "description": "Implement request logger middleware",
+      "dependencies": ["design"]
+    },
+    {
+      "id": "rate_limiter",
+      "description": "Implement rate limiting middleware",
+      "dependencies": ["design"]
+    },
+    {
+      "id": "tests",
+      "description": "Write tests for logging and rate limiting",
+      "dependencies": ["logger", "rate_limiter"]
+    },
+    {
+      "id": "integration",
+      "description": "Integrate middleware into API routes",
+      "dependencies": ["tests"]
+    },
+    {
+      "id": "docs",
+      "description": "Update API documentation",
+      "dependencies": ["integration"]
+    }
+  ]
+}
+```
+
+Saved to `.tasks/manifest/dag.json`.
+
+</details> <details> <summary><strong>Seeding Phase (seeder)</strong></summary>
+
+`2_seeder.sh` converts the DAG into individual task files:
+
+**Initial state after seeding**:
+
+- ✅ `.tasks/open/design.json` (no dependencies, ready to go)
+- 🛑 `.tasks/blocked/logger.json` (waiting for `design`)
+- 🛑 `.tasks/blocked/rate_limiter.json` (waiting for `design`)
+- 🛑 `.tasks/blocked/tests.json` (waiting for `logger` AND `rate_limiter`)
+- 🛑 `.tasks/blocked/integration.json` (waiting for `tests`)
+- 🛑 `.tasks/blocked/docs.json` (waiting for `integration`)
+
+The dependency structure looks like this:
+
+```mermaid
+graph TD
+  design((design<br/>OPEN)) -.-> logger((logger<br/>BLOCKED))
+  design -.-> rate_limiter((rate_limiter<br/>BLOCKED))
+  logger -.-> tests((tests<br/>BLOCKED))
+  rate_limiter -.-> tests
+  tests -.-> integration((integration<br/>BLOCKED))
+  integration -.-> docs((docs<br/>BLOCKED))
+  
+  style design fill:#90EE90
+  style logger fill:#FFB6C1
+  style rate_limiter fill:#FFB6C1
+  style tests fill:#FFB6C1
+  style integration fill:#FFB6C1
+  style docs fill:#FFB6C1
+```
+
+</details> <details> <summary><strong>Execution Phase (overlord + minions)</strong></summary>
+
+The overlord loop (`3_overlord.sh`) orchestrates everything:
+
+**Tick 1**:
+
+1. Checks capacity: 0/4 workers running
+2. Claims `design.json` from `open/` → `claimed/w_001/`
+3. Spawns: `4_minion.sh 001 design`
+4. Waits for completion
+
+**Tick 2** (after `design` completes):
+
+1. Unblocks: `logger.json` and `rate_limiter.json` move to `open/` (dependencies satisfied!)
+2. Checks capacity: 0/4 workers running
+3. Claims both tasks
+4. Spawns: `4_minion.sh 002 logger` and `4_minion.sh 003 rate_limiter` **in parallel**
+5. Waits for both to complete
+
+**Tick 3** (after both finish):
+
+1. Unblocks: `tests.json` moves to `open/` (both dependencies satisfied)
+2. Claims and executes `tests`
+3. Pattern continues: `integration` → `docs`
+
+Each minion:
+
+- Receives the task description via stdin
+- Executes via `TASKS_LLM_WORKER_CMD`
+- Writes everything to `.tasks/logs/<task_id>.log`
+- On success: moves task to `closed/`
+- On failure: moves task to `dead/`
+
+**Why this matters**: `logger` and `rate_limiter` run simultaneously, cutting total execution time roughly in half compared to sequential execution.
+
+</details>
+
+---
 
 ## Troubleshooting
 
-- **System looks stuck**: run `./5_status.sh`.
-  - If tasks sit in `blocked/`, check that their deps are in `closed/`; restart `./3_overlord.sh` if needed.
-  - If tasks pile in `dead/`, inspect `.tasks/logs/<task_id>.log`.
-- **Revive failed tasks**: `./6_revive.sh` moves `dead/` -> `open/`.
-- **Plans lack context**: bump scan depth in `1_architect.sh` (`find . -maxdepth 6 ...`).
+### Monitor Progress
+
+```bash
+./5_status.sh
+```
+
+Example output during execution:
+
+```
+🟢 OPEN (0)
+🚀 CLAIMED (2)
+   - w_002: logger
+   - w_003: rate_limiter
+🛑 BLOCKED (3)
+   - tests (waiting for: logger, rate_limiter)
+   - integration (waiting for: tests)
+   - docs (waiting for: integration)
+🏁 CLOSED (1)
+   - design
+💀 DEAD (0)
+```
+
+### Common Issues
+
+**Tasks stuck in `blocked/`:**
+
+- Check if dependencies are in `closed/`
+- Example: If `tests` is stuck, verify both `logger` and `rate_limiter` completed
+- Restart overlord: `./3_overlord.sh`
+
+**Tasks in `dead/`:**
+
+```bash
+# Check what went wrong
+cat .tasks/logs/logger.log
+
+# Retry failed tasks
+./6_revive.sh
+```
+
+Example failure scenario:
+
+```
+💀 DEAD (1)
+   - rate_limiter
+
+$ cat .tasks/logs/rate_limiter.log
+Error: Could not import redis module
+...
+```
+
+Fix the issue (install redis), then revive:
+
+```bash
+./6_revive.sh  # Moves rate_limiter.json: dead/ → open/
+./3_overlord.sh  # Overlord will pick it up automatically
+```
+
+**Plans lack context:** Increase scan depth in `1_architect.sh`:
+
+```bash
+find . -maxdepth 6 ...  # Bump to 7 or 8
+```
+
+---
 
 ## Testing & CI
 
-- Fast suite (no e2e): `make test` (runs Bats minus `tests/e2e.bats`).
-- E2E only: `make test-e2e` (fails fast if `tests/e2e.bats` is missing).
-- Dockerized all-tests: `./run-tests.sh` (builds `Dockerfile.test`, runs the full Bats suite in-container).
+Local testing:
 
-CI layout:
-- `.github/workflows/ci.yml`: ShellCheck on scripts (fast PR gate).
-- `.github/workflows/bats-tests.yml`: non-e2e tests in Docker with Buildx cache; ignores doc-only PRs; uploads logs on failure.
-- `.github/workflows/cli-e2e.yml`: e2e tests kept separate so long runs do not block main CI.
+```bash
+make test        # Fast suite (no e2e)
+make test-e2e    # E2E tests only
+./run-tests.sh   # Full suite in Docker
+```
+
+CI Workflows:
+
+- **ci.yml**: ShellCheck on all scripts (fast PR gate)
+- **bats-tests.yml**: Non-e2e tests with Buildx cache
+- **cli-e2e.yml**: E2E tests (separate to avoid blocking main CI)
+
+---
+
+## Complete Environment Reference
+
+<details> <summary><strong>All Configuration Variables</strong></summary>
+
+|Variable|Default|Used By|Purpose|
+|---|---|---|---|
+|`TASKS_DIR`|`$(pwd)/.tasks`|All scripts|Root directory for state tree|
+|`TASKS_SKIP_LOCKDOWN`|`0`|`setup.sh`|Skip chmod hardening when `1`|
+|`TASKS_MAX_WORKERS`|`4`|`setup.sh`, `3_overlord.sh`, `lib/domain.sh`|Max concurrent minions|
+|`TASKS_TIMEOUT_SECONDS`|`300`|`setup.sh`, `4_minion.sh`|Per-task timeout|
+|`TASKS_LLM_PLANNER_CMD`|`claude -p`|`setup.sh`, `1_architect.sh`, `adapters/llm_planner.sh`|Planner command|
+|`TASKS_LLM_WORKER_CMD_JSON`|_unset_|`setup.sh`, `4_minion.sh`|Worker command (JSON array)|
+|`TASKS_LLM_WORKER_CMD`|Derived|`setup.sh`, `4_minion.sh`, `adapters/llm_worker.sh`|Worker command (internal array)|
+|`TASKS_LLM_WORKER_CMD_STR`|Derived|`setup.sh`, tests/logs|Shell-escaped for display|
+|`TASKS_OVERLORD_TICKS`|_unset_|`adapters/control.sh`, `3_overlord.sh`|Test/debug tick limit|
+|`TASKS_SLEEP_SECONDS`|`2`|`3_overlord.sh`|Loop delay|
+
+</details>
+
+---
+
+## Understanding the Example Output
+
+When everything runs successfully, you'll see this progression:
+
+```bash
+# Initial state (after seeding)
+$ ./5_status.sh
+🟢 OPEN (1): design
+🛑 BLOCKED (5): logger, rate_limiter, tests, integration, docs
+
+# After design completes
+🟢 OPEN (2): logger, rate_limiter
+🛑 BLOCKED (3): tests, integration, docs
+🏁 CLOSED (1): design
+
+# During parallel execution
+🚀 CLAIMED (2): logger, rate_limiter
+🛑 BLOCKED (3): tests, integration, docs
+🏁 CLOSED (1): design
+
+# After parallel work completes
+🟢 OPEN (1): tests
+🛑 BLOCKED (2): integration, docs
+🏁 CLOSED (3): design, logger, rate_limiter
+
+# Final state
+🏁 CLOSED (6): design, logger, rate_limiter, tests, integration, docs
+```
+
+Check the logs to see what each worker actually did:
+
+```bash
+ls -l .tasks/logs/
+# design.log         - Architecture decisions
+# logger.log         - Middleware implementation
+# rate_limiter.log   - Rate limiting logic
+# tests.log          - Test suite
+# integration.log    - Route updates
+# docs.log           - Documentation changes
+```
 
 ---
 
 ## License
 
-MIT
-_© 2025 James Ross • [Flying•Robots](https://github.com/flyingrobots)_
+MIT  
+_© 2025 James Ross • [Flying•Robots](https://github.com/flyingrobots)_  
 _All Rights Reserved_
-
----
-
-## Appendix: Environment Variables
-
-| Variable | Default | Used by | Purpose |
-|----------|---------|---------|---------|
-| `TASKS_DIR` | `$(pwd)/.tasks` | all scripts | Root for state tree (manifest/open/blocked/claimed/closed/dead/logs/pids/prompts). |
-| `TASKS_SKIP_LOCKDOWN` | `0` | `setup.sh` | When `1`, creates the tree without chmod 700/600 hardening (useful on shared filesystems). |
-| `TASKS_MAX_WORKERS` | `4` | `setup.sh`, `3_overlord.sh`, `lib/domain.sh` | Upper bound on concurrent minions the overlord will spawn. |
-| `TASKS_TIMEOUT_SECONDS` | `300` | `setup.sh`, `4_minion.sh` | Timeout wrapper around the worker command; task fails if exceeded. |
-| `TASKS_LLM_PLANNER_CMD` | `claude -p` | `setup.sh`, `1_architect.sh`, `adapters/llm_planner.sh` | Planner command; must emit valid DAG JSON to stdout. |
-| `TASKS_LLM_WORKER_CMD_JSON` | _unset_ | `setup.sh`, `4_minion.sh` | **Preferred**: JSON array of argv tokens for the worker. Must be a non-empty array. Parsed with `jq` into `TASKS_LLM_WORKER_CMD`. |
-| `TASKS_LLM_WORKER_CMD` | derived from JSON or default | `setup.sh`, `4_minion.sh`, `adapters/llm_worker.sh` | Array used for execution (no shell eval). Exported for callers; configure via `TASKS_LLM_WORKER_CMD_JSON`. |
-| `TASKS_LLM_WORKER_CMD_STR` | derived | `setup.sh`, tests/logs | Shell-escaped string form for logging/debugging; mirrors `TASKS_LLM_WORKER_CMD`. |
-| `TASKS_OVERLORD_TICKS` | _unset_ | `adapters/control.sh`, `3_overlord.sh` | Optional test/debug guard: if set to a non-negative integer, overlord exits after that many scheduler ticks. |
-| `TASKS_SLEEP_SECONDS` | `2` | `3_overlord.sh` | Delay between scheduler ticks (overlord loop pacing). |
-
-Notes:
-- Derived variables (`TASKS_LLM_WORKER_CMD`, `TASKS_LLM_WORKER_CMD_STR`) are computed in `setup.sh`; configure via `TASKS_LLM_WORKER_CMD_JSON` only.
-- `TASKS_DIR` is respected by all scripts and tests; set once before running any entrypoint.
