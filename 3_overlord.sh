@@ -15,7 +15,7 @@ port_launch_minion() {
     echo $pid >"$TASKS_DIR/pids/$1.pid"
 }
 
-echo "👁️  Overlord is watching. Max Workers: $MAX_WORKERS"
+echo "👁️  Overlord is watching. Max Workers: $TASKS_MAX_WORKERS"
 
 graceful_shutdown() {
     echo "Overlord shutting down..."
@@ -47,7 +47,7 @@ graceful_shutdown() {
 
 trap graceful_shutdown SIGINT SIGTERM
 
-SLEEP_SECONDS=${SLEEP_SECONDS:-2}
+TASKS_SLEEP_SECONDS=${TASKS_SLEEP_SECONDS:-2}
 
 tick=0
 while port_should_continue "$tick"; do
@@ -70,5 +70,5 @@ while port_should_continue "$tick"; do
 
     tick=$((tick+1))
 
-    sleep "$SLEEP_SECONDS"
+    sleep "$TASKS_SLEEP_SECONDS"
 done

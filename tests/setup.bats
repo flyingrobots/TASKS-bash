@@ -37,7 +37,7 @@ teardown() {
 }
 
 @test "setup.sh exports expected environment variables (defaults)" {
-  run bash -c 'source ./setup.sh && printf "%s\n%s\n%s\n%s\n" "$TASKS_DIR" "$MAX_WORKERS" "$LLM_PLANNER_CMD" "$LLM_WORKER_CMD_STR"'
+  run bash -c 'source ./setup.sh && printf "%s\n%s\n%s\n%s\n" "$TASKS_DIR" "$TASKS_MAX_WORKERS" "$TASKS_LLM_PLANNER_CMD" "$TASKS_LLM_WORKER_CMD_STR"'
   [ "$status" -eq 0 ]
 
   mapfile -t vars < <(printf '%s' "$output")
@@ -74,8 +74,8 @@ teardown() {
 }
 
 @test "LLM_WORKER_CMD_JSON parses valid array" {
-  export LLM_WORKER_CMD_JSON='["/bin/echo","-n"]'
-  run bash -c 'source ./setup.sh && printf "%s\n" "${LLM_WORKER_CMD[@]}"'
+  export TASKS_LLM_WORKER_CMD_JSON='["/bin/echo","-n"]'
+  run bash -c 'source ./setup.sh && printf "%s\n" "${TASKS_LLM_WORKER_CMD[@]}"'
   [ "$status" -eq 0 ]
   mapfile -t vals < <(printf '%s' "$output")
   [ "${#vals[@]}" -ge 2 ]
@@ -83,14 +83,14 @@ teardown() {
 }
 
 @test "LLM_WORKER_CMD_JSON rejects malformed JSON" {
-  export LLM_WORKER_CMD_JSON='not json'
+  export TASKS_LLM_WORKER_CMD_JSON='not json'
   run bash ./setup.sh
   [ "$status" -ne 0 ]
   [[ "$output" =~ (JSON|json|parse|Invalid) ]]
 }
 
 @test "LLM_WORKER_CMD_JSON rejects empty array" {
-  export LLM_WORKER_CMD_JSON='[]'
+  export TASKS_LLM_WORKER_CMD_JSON='[]'
   run bash ./setup.sh
   [ "$status" -ne 0 ]
   [[ "$output" == *"empty"* ]] || [[ "$output" == *"JSON array"* ]] || [[ "$output" == *"must not be empty"* ]]

@@ -39,7 +39,7 @@ domain_spawn_next_task() {
   current=$(port_count_claimed_workers)
   open_count=$(port_count_open_tasks)
 
-  if [ "$current" -ge "${MAX_WORKERS:-1}" ]; then
+  if [ "$current" -ge "${TASKS_MAX_WORKERS:-1}" ]; then
     return 1
   fi
   if [ "$open_count" -le 0 ]; then

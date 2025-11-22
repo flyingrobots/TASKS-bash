@@ -74,7 +74,7 @@ flowchart TD
 
 ### Planner (architect) details
 - `1_architect.sh` builds a **planner prompt** from repo context, the user goal, and guardrails.
-- It executes `LLM_PLANNER_CMD` (default `claude -p`) and expects **valid JSON** on stdout shaped like:
+- It executes `TASKS_LLM_PLANNER_CMD` (default `claude -p`) and expects **valid JSON** on stdout shaped like:
   ```json
   {
     "tasks": [
@@ -104,18 +104,18 @@ Results on disk:
 - `.tasks/blocked/docs.json` (deps `["plan"]`)
 
 ### Script roles (expanded)
-- **setup.sh** – config & directory scaffold; parses `LLM_WORKER_CMD_JSON`; permission lockdown.
+- **setup.sh** – config & directory scaffold; parses `TASKS_LLM_WORKER_CMD_JSON`; permission lockdown.
 - **1_architect.sh** – planner prompt + LLM -> `dag.json`.
 - **2_seeder.sh** – splits DAG into per-task files, routes to `open/` vs `blocked/`.
-- **3_overlord.sh** – scheduler loop: unblocks tasks, enforces `MAX_WORKERS`, claims work, spawns minions, waits.
-- **4_minion.sh** – executes one task via `LLM_WORKER_CMD` (array), logs output, moves task to `closed/` or `dead/`.
+- **3_overlord.sh** – scheduler loop: unblocks tasks, enforces `TASKS_MAX_WORKERS`, claims work, spawns minions, waits.
+- **4_minion.sh** – executes one task via `TASKS_LLM_WORKER_CMD` (array), logs output, moves task to `closed/` or `dead/`.
 - **5_status.sh** – renders the current tree for humans.
 - **6_revive.sh** – moves items from `dead/` back to `open/` for retries.
 
 ### Overlord loop (precise)
 Each tick of `3_overlord.sh` does:
 1) **Unblock**: move any task whose deps are all in `closed/` from `blocked/` -> `open/`.
-2) **Capacity check**: count running workers vs `MAX_WORKERS`.
+2) **Capacity check**: count running workers vs `TASKS_MAX_WORKERS`.
 3) **Claim**: atomically move up to the remaining capacity from `open/` -> `claimed/w_<id>/task.json`.
 4) **Spawn**: fork `4_minion.sh <worker_id> <task_id>` for each claim; record pid under `.tasks/pids/`.
 5) **Reap**: wait for any pid to finish, then loop.
@@ -166,7 +166,7 @@ Key guarantees:
 - `./setup.sh` builds the `.tasks/` tree. By default it sets `umask 077` and enforces `0700` on directories and `0600` on files (defensive hardening).
 - Set `TASKS_SKIP_LOCKDOWN=1` to skip the chmod step (useful on shared or constrained filesystems); structure is still created.
 - Errors are reported to stderr and the script returns/non-zero without killing the parent shell when sourced.
-- `jq` is required if you set `LLM_WORKER_CMD_JSON`; otherwise only Bash and coreutils/find are needed.
+- `jq` is required if you set `TASKS_LLM_WORKER_CMD_JSON`; otherwise only Bash and coreutils/find are needed.
 
 ## Configuration & LLM Swaps
 
@@ -174,15 +174,15 @@ All runtime config lives in `setup.sh`. Override via env vars before running:
 
 - `TASKS_DIR` (default `$(pwd)/.tasks`): location of the state tree.
 - `TASKS_SKIP_LOCKDOWN=1`: create the tree without chmod 700/600 (useful in shared or constrained filesystems).
-- `MAX_WORKERS` (default `4`): max concurrent minions.
-- `TIMEOUT_SECONDS` (default `300`): per-task timeout applied around the worker command.
-- `LLM_PLANNER_CMD` (default `claude -p`): planner that reads the prompt file and goal, writes JSON DAG to stdout.
-- `LLM_WORKER_CMD_JSON` (preferred): JSON array of argv tokens for the worker. Required format: non-empty array of strings. Example:
+- `TASKS_MAX_WORKERS` (default `4`): max concurrent minions.
+- `TASKS_TIMEOUT_SECONDS` (default `300`): per-task timeout applied around the worker command.
+- `TASKS_LLM_PLANNER_CMD` (default `claude -p`): planner that reads the prompt file and goal, writes JSON DAG to stdout.
+- `TASKS_LLM_WORKER_CMD_JSON` (preferred): JSON array of argv tokens for the worker. Required format: non-empty array of strings. Example:
   ```bash
-  export LLM_WORKER_CMD_JSON='["python3","my_worker.py","--mode","edit"]'
+  export TASKS_LLM_WORKER_CMD_JSON='["python3","my_worker.py","--mode","edit"]'
   ```
-  `setup.sh` parses this with `jq`, fails fast if jq is missing or JSON is malformed/empty, and exports `LLM_WORKER_CMD` (array) plus a shell-escaped `LLM_WORKER_CMD_STR` for logging.
-- Default worker (when `LLM_WORKER_CMD_JSON` is unset): `claude --dangerously-skip-permissions` executed as argv (no shell). Swap it by setting `LLM_WORKER_CMD_JSON`.
+  `setup.sh` parses this with `jq`, fails fast if jq is missing or JSON is malformed/empty, and exports `TASKS_LLM_WORKER_CMD` (array) plus a shell-escaped `TASKS_LLM_WORKER_CMD_STR` for logging.
+- Default worker (when `TASKS_LLM_WORKER_CMD_JSON` is unset): `claude --dangerously-skip-permissions` executed as argv (no shell). Swap it by setting `TASKS_LLM_WORKER_CMD_JSON`.
 
 > [!CAUTION]
 > The default worker uses `--dangerously-skip-permissions`, which bypasses Claude Code confirmation prompts and grants write access. Use only inside a disposable workspace or git repo, and review `.tasks/logs/*.log` plus `git diff` before committing.
@@ -190,7 +190,7 @@ All runtime config lives in `setup.sh`. Override via env vars before running:
 Notes on command execution:
 - The worker receives the prompt on STDIN; arguments are not shell-expanded (array is executed directly).
 - Paths/flags containing spaces or quotes must be separate JSON array elements—do **not** rely on shell splitting.
-- Planner remains string-based for simplicity; it is invoked as a single command line (`$LLM_PLANNER_CMD <prompt> <goal>`). If your planner needs complex argv, wrap it in a small shim script.
+- Planner remains string-based for simplicity; it is invoked as a single command line (`$TASKS_LLM_PLANNER_CMD <prompt> <goal>`). If your planner needs complex argv, wrap it in a small shim script.
 
 ## Components At a Glance
 
@@ -239,14 +239,15 @@ _All Rights Reserved_
 |----------|---------|---------|---------|
 | `TASKS_DIR` | `$(pwd)/.tasks` | all scripts | Root for state tree (manifest/open/blocked/claimed/closed/dead/logs/pids/prompts). |
 | `TASKS_SKIP_LOCKDOWN` | `0` | `setup.sh` | When `1`, creates the tree without chmod 700/600 hardening (useful on shared filesystems). |
-| `MAX_WORKERS` | `4` | `setup.sh`, `3_overlord.sh` | Upper bound on concurrent minions the overlord will spawn. |
-| `TIMEOUT_SECONDS` | `300` | `4_minion.sh` | Timeout wrapper around the worker command; task fails if exceeded. |
-| `LLM_PLANNER_CMD` | `claude -p` | `setup.sh`, `1_architect.sh` | Planner command; must emit valid DAG JSON to stdout. |
-| `LLM_WORKER_CMD_JSON` | _unset_ | `setup.sh`, `4_minion.sh` | **Preferred**: JSON array of argv tokens for the worker. Must be a non-empty array. Parsed with `jq` into `LLM_WORKER_CMD`. |
-| `LLM_WORKER_CMD` | derived from JSON or default | `setup.sh`, `4_minion.sh` | Array used for execution (no shell eval). Exported for callers; do not set directly—use `LLM_WORKER_CMD_JSON`. |
-| `LLM_WORKER_CMD_STR` | derived | `setup.sh`, tests/logs | Shell-escaped string form for logging/debugging; mirrors `LLM_WORKER_CMD`. |
-| `OVERLORD_TICKS` | _unset_ | `adapters/control.sh`, `3_overlord.sh` | Optional test/debug guard: if set to a non-negative integer, overlord exits after that many scheduler ticks. |
+| `TASKS_MAX_WORKERS` | `4` | `setup.sh`, `3_overlord.sh`, `lib/domain.sh` | Upper bound on concurrent minions the overlord will spawn. |
+| `TASKS_TIMEOUT_SECONDS` | `300` | `setup.sh`, `4_minion.sh` | Timeout wrapper around the worker command; task fails if exceeded. |
+| `TASKS_LLM_PLANNER_CMD` | `claude -p` | `setup.sh`, `1_architect.sh`, `adapters/llm_planner.sh` | Planner command; must emit valid DAG JSON to stdout. |
+| `TASKS_LLM_WORKER_CMD_JSON` | _unset_ | `setup.sh`, `4_minion.sh` | **Preferred**: JSON array of argv tokens for the worker. Must be a non-empty array. Parsed with `jq` into `TASKS_LLM_WORKER_CMD`. |
+| `TASKS_LLM_WORKER_CMD` | derived from JSON or default | `setup.sh`, `4_minion.sh`, `adapters/llm_worker.sh` | Array used for execution (no shell eval). Exported for callers; configure via `TASKS_LLM_WORKER_CMD_JSON`. |
+| `TASKS_LLM_WORKER_CMD_STR` | derived | `setup.sh`, tests/logs | Shell-escaped string form for logging/debugging; mirrors `TASKS_LLM_WORKER_CMD`. |
+| `TASKS_OVERLORD_TICKS` | _unset_ | `adapters/control.sh`, `3_overlord.sh` | Optional test/debug guard: if set to a non-negative integer, overlord exits after that many scheduler ticks. |
+| `TASKS_SLEEP_SECONDS` | `2` | `3_overlord.sh` | Delay between scheduler ticks (overlord loop pacing). |
 
 Notes:
-- Derived variables (`LLM_WORKER_CMD`, `LLM_WORKER_CMD_STR`) are computed in `setup.sh`; prefer configuring via `LLM_WORKER_CMD_JSON` only.
+- Derived variables (`TASKS_LLM_WORKER_CMD`, `TASKS_LLM_WORKER_CMD_STR`) are computed in `setup.sh`; configure via `TASKS_LLM_WORKER_CMD_JSON` only.
 - `TASKS_DIR` is respected by all scripts and tests; set once before running any entrypoint.

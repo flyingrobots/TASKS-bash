@@ -15,15 +15,15 @@ port_should_continue() {
     return 2
   fi
 
-  # If OVERLORD_TICKS is set, validate it's numeric
-  # Use parameter expansion with default to handle set -u
-  if [ -n "${OVERLORD_TICKS-}" ]; then
-    if ! [[ "$OVERLORD_TICKS" =~ ^[0-9]+$ ]]; then
-      echo "Error: OVERLORD_TICKS must be a non-negative integer, got: $OVERLORD_TICKS" >&2
+  # If TASKS_OVERLORD_TICKS is set, validate it's numeric
+  local ticks_var=${TASKS_OVERLORD_TICKS-}
+  if [ -n "$ticks_var" ]; then
+    if ! [[ "$ticks_var" =~ ^[0-9]+$ ]]; then
+      echo "Error: TASKS_OVERLORD_TICKS must be a non-negative integer, got: $ticks_var" >&2
       return 2
     fi
     # Explicit return based on comparison
-    if [ "$tick" -lt "$OVERLORD_TICKS" ]; then
+    if [ "$tick" -lt "$ticks_var" ]; then
       return 0
     else
       return 1

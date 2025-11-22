@@ -35,10 +35,10 @@ SH
 teardown() { rm -rf "$TEST_TMP"; }
 
 @test "overlord spawns sequential tasks and reuses capacity" {
-  export LLM_WORKER_CMD_JSON=$(jq -nc --arg cmd "$TEST_TMP/fake_worker.sh" '[ $cmd ]')
-  export MAX_WORKERS=1
-  export OVERLORD_TICKS=10
-  export SLEEP_SECONDS=0.1
+  export TASKS_LLM_WORKER_CMD_JSON=$(jq -nc --arg cmd "$TEST_TMP/fake_worker.sh" '[ $cmd ]')
+  export TASKS_MAX_WORKERS=1
+  export TASKS_OVERLORD_TICKS=10
+  export TASKS_SLEEP_SECONDS=0.1
 
   chmod +x ./3_overlord.sh ./4_minion.sh adapters/*.sh lib/*.sh
   run bash ./3_overlord.sh

@@ -5,7 +5,7 @@ setup() {
   TEST_TMP="$(mktemp -d)"
   export TASKS_DIR="$TEST_TMP/.tasks"
   mkdir -p "$TASKS_DIR"/{blocked,open,closed,claimed}
-  export MAX_WORKERS=1
+  export TASKS_MAX_WORKERS=1
 
   # Minimal adapters for domain use
   port_list_blocked_tasks() { ls "$TASKS_DIR/blocked"/*.json 2>/dev/null || true; }
@@ -82,7 +82,7 @@ JSON
   [ ! -f "$TASKS_DIR/open/${TID}.json" ]
 }
 
-@test "spawn_next_task respects MAX_WORKERS and claims task" {
+@test "spawn_next_task respects TASKS_MAX_WORKERS and claims task" {
   # Generate unique task and worker IDs
   local TASK_ID="t3_${BATS_TEST_NUMBER}_$RANDOM"
   local EXISTING_WORKER="worker_existing_${BATS_TEST_NUMBER}_$RANDOM"

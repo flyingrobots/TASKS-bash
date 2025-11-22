@@ -30,7 +30,7 @@ then
     exit 1
 fi
 
-port_log_info "🧠 Architect is thinking (using $LLM_PLANNER_CMD)..."
+port_log_info "🧠 Architect is thinking (using $TASKS_LLM_PLANNER_CMD)..."
 
 # Use temp file to avoid creating output on failure
 TEMP_MANIFEST="$TASKS_DIR/manifest/dag.json.tmp"

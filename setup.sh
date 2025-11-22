@@ -33,8 +33,9 @@ else
   cleanup_umask
 fi
 
-# Worker Configuration
-export MAX_WORKERS=${MAX_WORKERS:-4}
+# Worker Configuration (prefixed envs; legacy aliases supported for compatibility)
+export TASKS_MAX_WORKERS=${TASKS_MAX_WORKERS:-4}
+export TASKS_TIMEOUT_SECONDS=${TASKS_TIMEOUT_SECONDS:-300}
 
 # ==========================================
 # LLM ABSTRACTION LAYER
@@ -44,52 +45,53 @@ export MAX_WORKERS=${MAX_WORKERS:-4}
 
 # 1. The Planner (Architect)
 # Requirements: Must output valid JSON to stdout.
-# Input format: LLM_PLANNER_CMD <prompt_file> <user_input_string>
-export LLM_PLANNER_CMD="${LLM_PLANNER_CMD:-claude -p}"
+# Input format: TASKS_LLM_PLANNER_CMD <prompt_file> <user_input_string>
+export TASKS_LLM_PLANNER_CMD="${TASKS_LLM_PLANNER_CMD:-claude -p}"
 
 # 2. The Worker (Minion)
 # Requirements: Must be capable of File I/O (editing files in place).
-# Input format: Preferred LLM_WORKER_CMD_JSON as a JSON array of strings; defaults to claude if unset.
+# Input format: Preferred TASKS_LLM_WORKER_CMD_JSON as a JSON array of strings; defaults to claude if unset.
 # Note: We use --dangerously-skip-permissions for full autonomy.
-LLM_WORKER_CMD_DEFAULT=(claude --dangerously-skip-permissions)
+TASKS_LLM_WORKER_CMD_DEFAULT=(claude --dangerously-skip-permissions)
 
 # Resolve worker command (JSON only + default)
-if [ -n "${LLM_WORKER_CMD_JSON:-}" ]; then
+if [ -n "${TASKS_LLM_WORKER_CMD_JSON:-}" ]; then
+  TASKS_LLM_WORKER_CMD_JSON_EFFECTIVE=${TASKS_LLM_WORKER_CMD_JSON}
   if ! command -v jq >/dev/null 2>&1; then
-    echo "Error: jq is required to parse LLM_WORKER_CMD_JSON" >&2
+    echo "Error: jq is required to parse TASKS_LLM_WORKER_CMD_JSON" >&2
     exit 1
   fi
   jq_tmp_err=$(mktemp)
-  jq_output=$(printf '%s' "$LLM_WORKER_CMD_JSON" | jq -r 'if type=="array" and length>0 then .[] else error("LLM_WORKER_CMD_JSON must be a non-empty array") end' 2>"$jq_tmp_err") || {
+  jq_output=$(printf '%s' "$TASKS_LLM_WORKER_CMD_JSON_EFFECTIVE" | jq -r 'if type=="array" and length>0 then .[] else error("TASKS_LLM_WORKER_CMD_JSON must be a non-empty array") end' 2>"$jq_tmp_err") || {
     err_msg=$(cat "$jq_tmp_err" 2>/dev/null || true)
     rm -f "$jq_tmp_err"
     if [ -n "$err_msg" ]; then
       echo "$err_msg" >&2
     else
-      echo "Error: LLM_WORKER_CMD_JSON must be a JSON array of strings" >&2
+      echo "Error: TASKS_LLM_WORKER_CMD_JSON must be a JSON array of strings" >&2
     fi
     exit 1
   }
   rm -f "$jq_tmp_err"
-  mapfile -t LLM_WORKER_CMD <<<"$jq_output"
-  if [ ${#LLM_WORKER_CMD[@]} -eq 0 ]; then
-    echo "Error: LLM_WORKER_CMD_JSON must not be empty" >&2
+  mapfile -t TASKS_LLM_WORKER_CMD <<<"$jq_output"
+  if [ ${#TASKS_LLM_WORKER_CMD[@]} -eq 0 ]; then
+    echo "Error: TASKS_LLM_WORKER_CMD_JSON must not be empty" >&2
     exit 1
   fi
 else
-  LLM_WORKER_CMD=("${LLM_WORKER_CMD_DEFAULT[@]}")
+  TASKS_LLM_WORKER_CMD=("${TASKS_LLM_WORKER_CMD_DEFAULT[@]}")
 fi
 
-if [ ${#LLM_WORKER_CMD[@]} -eq 0 ]; then
-  echo "Error: LLM_WORKER_CMD is empty after initialization" >&2
+if [ ${#TASKS_LLM_WORKER_CMD[@]} -eq 0 ]; then
+  echo "Error: TASKS_LLM_WORKER_CMD is empty after initialization" >&2
   exit 1
 fi
 
-export LLM_WORKER_CMD
+export TASKS_LLM_WORKER_CMD
 # For logging/tests, keep a shell-escaped string form mirroring the resolved array
-LLM_WORKER_CMD_STR=$(printf '%q ' "${LLM_WORKER_CMD[@]}")
-LLM_WORKER_CMD_STR=${LLM_WORKER_CMD_STR%% }  # trim trailing space
-export LLM_WORKER_CMD_STR
+TASKS_LLM_WORKER_CMD_STR=$(printf '%q ' "${TASKS_LLM_WORKER_CMD[@]}")
+TASKS_LLM_WORKER_CMD_STR=${TASKS_LLM_WORKER_CMD_STR%% }  # trim trailing space
+export TASKS_LLM_WORKER_CMD_STR
 
 # Helper function to generate a high-entropy worker ID
 get_worker_id() {

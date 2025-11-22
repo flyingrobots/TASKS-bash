@@ -64,15 +64,15 @@ if [ ! -w "$TASKS_DIR/logs" ]; then
   exit 1
 fi
 
-TIMEOUT_SECONDS=${TIMEOUT_SECONDS:-300}
+TIMEOUT_SECONDS=${TASKS_TIMEOUT_SECONDS:-300}
 if command -v timeout >/dev/null 2>&1; then
-  printf '%s\n' "$prompt" | timeout --preserve-status "${TIMEOUT_SECONDS}s" "${LLM_WORKER_CMD[@]}" >"$LOG_FILE" 2>&1
+  printf '%s\n' "$prompt" | timeout --preserve-status "${TIMEOUT_SECONDS}s" "${TASKS_LLM_WORKER_CMD[@]}" >"$LOG_FILE" 2>&1
   status=$?
   if [ $status -eq 124 ] || [ $status -eq 137 ]; then
     port_log_error "LLM worker timed out for $task_id"
   fi
 else
-  printf '%s\n' "$prompt" | "${LLM_WORKER_CMD[@]}" >"$LOG_FILE" 2>&1
+  printf '%s\n' "$prompt" | "${TASKS_LLM_WORKER_CMD[@]}" >"$LOG_FILE" 2>&1
   status=$?
 fi
 
