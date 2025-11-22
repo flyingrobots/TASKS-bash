@@ -6,6 +6,7 @@ setup() {
   cp "${PROJECT_ROOT}/setup.sh" "${PROJECT_ROOT}/1_architect.sh" "$TEST_TMP/"
   mkdir -p "$TEST_TMP/adapters"
   cp "${PROJECT_ROOT}/adapters/log.sh" "${PROJECT_ROOT}/adapters/llm_planner.sh" "$TEST_TMP/adapters/"
+  cp -r "${PROJECT_ROOT}/lib" "$TEST_TMP/"
   mkdir -p "$TEST_TMP/tests/fixtures"
   cp "${PROJECT_ROOT}/tests/fixtures/fake_planner.sh" "$TEST_TMP/tests/fixtures/"
   chmod +x "$TEST_TMP/tests/fixtures/fake_planner.sh"

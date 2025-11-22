@@ -4,9 +4,9 @@ setup() {
   PROJECT_ROOT="$(pwd)"
   TEST_TMP="$(mktemp -d)"
   cp "$PROJECT_ROOT/3_overlord.sh" "$PROJECT_ROOT/4_minion.sh" "$PROJECT_ROOT/setup.sh" "$TEST_TMP/"
-  mkdir -p "$TEST_TMP/adapters" "$TEST_TMP/lib"
+  mkdir -p "$TEST_TMP/adapters"
   cp "$PROJECT_ROOT"/adapters/{fs.sh,log.sh,llm_worker.sh,control.sh} "$TEST_TMP/adapters/"
-  cp "$PROJECT_ROOT/lib/domain.sh" "$TEST_TMP/lib/"
+  cp -r "$PROJECT_ROOT/lib" "$TEST_TMP/"
 
   mkdir -p "$TEST_TMP/.tasks/open" "$TEST_TMP/.tasks/claimed" "$TEST_TMP/.tasks/closed" "$TEST_TMP/.tasks/dead" "$TEST_TMP/.tasks/logs" "$TEST_TMP/.tasks/pids"
 
