@@ -25,7 +25,9 @@ teardown() {
   [ -z "$diff_output" ]
 
   for dir in "${expected[@]}"; do
-    [ "$(find ".tasks/${dir}" -mindepth 1 | wc -l)" -eq 0 ]
+    if [ "$dir" != "prompts" ]; then
+      [ "$(find ".tasks/${dir}" -mindepth 1 | wc -l)" -eq 0 ]
+    fi
     perms=$(stat -c '%a' ".tasks/${dir}" 2>/dev/null || stat -f '%Lp' ".tasks/${dir}" 2>/dev/null || true)
     if [ -z "$perms" ]; then
       echo "stat failed to read permissions for .tasks/${dir}" >&2

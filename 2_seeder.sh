@@ -11,7 +11,7 @@ fi
 
 port_log_info "🌱 Seeding tasks from $DAG_FILE"
 
-jq -c '.tasks[]' "$DAG_FILE" | while read -r task; do
+while read -r task; do
     id=$(echo "$task" | jq -er 'select(.id | type == "string" and length > 0) | .id' 2>/dev/null || true)
     if [ -z "$id" ]; then
         port_log_error "⚠️  Skipping task with missing/invalid id: $task"
@@ -53,6 +53,6 @@ jq -c '.tasks[]' "$DAG_FILE" | while read -r task; do
     fi
 
     port_log_info "Seeded $id -> $(basename "$(dirname "$target")")"
-done
+done < <(jq -c '.tasks[]' "$DAG_FILE")
 
 port_log_info "✅ Seeding complete"

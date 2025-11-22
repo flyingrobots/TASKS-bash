@@ -19,8 +19,8 @@ else
     template_content="You are the T.A.S.K.S. Architect.\n\nCONTEXT:\n- Project file tree intentionally omitted to keep the prompt light.\n- If you need directory context, explicitly ask for a targeted, shallow listing rather than the whole repo.\n\nGOAL: {{GOAL}}\n\nRULES:\n1. Break the goal into atomic, bounded tasks (2-4 hours estimated effort).\n2. NO CYCLES in dependencies.\n3. Output ONLY valid JSON. Do not include markdown fences or chatter.\n4. Reference existing files from the context in your task scopes."
 fi
 
-# Render template
-prompt_rendered=${template_content//{{GOAL}}/$GOAL}
+# Render template (placeholder {{GOAL}})
+prompt_rendered=${template_content//\{\{GOAL\}\}/$GOAL}
 
 if ! printf '%s\n' "$prompt_rendered" > "$PROMPT_FILE"; then
     port_log_error "Failed to write prompt file"
