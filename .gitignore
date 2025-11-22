@@ -6,4 +6,6 @@
 
 # macOS system files
 .DS_Store
+
+# Local configuration
 .claude/settings.local.json
