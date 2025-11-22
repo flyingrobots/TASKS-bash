@@ -23,6 +23,16 @@ Give T.A.S.K.S. a goal and watch it work:
 
 ## Quick Start
 
+**One command (full pipeline):**
+
+```bash
+./tasks.sh "Add request logging and rate limiting to our API"
+```
+
+This runs setup → architect → seeder → overlord (rolling frontier) with a default tick limit so it finishes on its own. Logs live in `.tasks/logs/`.
+
+**Step-by-step (fine control):**
+
 ```bash
 # Make scripts executable
 chmod +x setup.sh 1_architect.sh 2_seeder.sh 3_overlord.sh 4_minion.sh 5_status.sh 6_revive.sh
