@@ -10,4 +10,4 @@
 # Local configuration
 .claude/settings.local.json
 
-.obsidian/
+.obsidian
